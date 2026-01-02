@@ -26,7 +26,7 @@ export default function Home() {
   const [batchIdeas, setBatchIdeas] = useState<Idea[]>([]);
   const [selectedBatchIds, setSelectedBatchIds] = useState<Set<string>>(new Set());
 
-  const [lastGeneratedIdea, setLastGeneratedIdea] = useState<Idea | null>(null);
+  const [generatedCandidates, setGeneratedCandidates] = useState<Idea[]>([]);
   const [selectedIdea, setSelectedIdea] = useState<Idea | null>(null);
 
   // UI State
@@ -157,17 +157,23 @@ export default function Home() {
 
   const handleGenerateValues = async () => {
     setIsGenerating(true);
-    setLastGeneratedIdea(null);
     const idea = generateIdea(selectedNiche as any); // Use niche if available
-    setLastGeneratedIdea(idea);
+
+    // Add new idea to top of candidates
+    setGeneratedCandidates(prev => [idea, ...prev]);
     setIsGenerating(false);
   };
 
   const handleSaveGenerated = async (idea: Idea) => {
     await db.saveIdea(idea);
     setIdeas(prev => [idea, ...prev]);
-    setLastGeneratedIdea(null); // Return to list view or keep? Let's just add it.
+    // Remove from candidates
+    setGeneratedCandidates(prev => prev.filter(i => i.id !== idea.id));
   };
+
+  const handleDismissGenerated = (id: string) => {
+    setGeneratedCandidates(prev => prev.filter(i => i.id !== id));
+  }
 
   const handleLike = async (id: string) => {
     const idea = ideas.find(i => i.id === id);
@@ -364,26 +370,35 @@ export default function Home() {
               key="dashboard"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="w-full max-w-4xl flex flex-col items-center gap-8"
+              className="w-full max-w-4xl flex flex-col items-center gap-8 pb-32"
             >
               <IdeaGenerator onGenerate={handleGenerateValues} isGenerating={isGenerating} />
 
-              {lastGeneratedIdea && (
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full">
-                  <IdeaCard
-                    idea={lastGeneratedIdea}
-                    onLike={handleLike}
-                    onCheck={handleCheck}
-                    onDelete={() => setLastGeneratedIdea(null)}
-                    onClick={() => handleSaveGenerated(lastGeneratedIdea)}
-                  />
-                  <p className="text-center text-slate-500 mt-2 text-sm">Click card to save to history</p>
-                </motion.div>
-              )}
+              <div className="w-full flex flex-col gap-6">
+                <AnimatePresence>
+                  {generatedCandidates.map((idea) => (
+                    <motion.div
+                      key={idea.id}
+                      initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9, height: 0 }}
+                      className="w-full"
+                    >
+                      <IdeaCard
+                        idea={idea}
+                        onLike={() => { }}
+                        onCheck={() => { }}
+                        onDelete={() => handleDismissGenerated(idea.id)}
+                        onClick={() => handleSaveGenerated(idea)}
+                      />
+                      <p className="text-center text-slate-500 mt-2 text-sm">Click card to save to history</p>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
-
       </div>
 
       <StepsModal
