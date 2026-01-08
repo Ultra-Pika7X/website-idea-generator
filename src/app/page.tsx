@@ -151,7 +151,7 @@ export default function Home() {
       setBatchIdeas([]);
     };
 
-    // REMOVED handleLoginSuccess
+
 
     // --- Dashboard Handlers ---
 
@@ -460,7 +460,7 @@ export default function Home() {
           onSave={() => { }}
         />
 
-// REMOVED AuthModal component
+
 
       </main >
     );
