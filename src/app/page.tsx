@@ -160,8 +160,11 @@ export default function Home() {
 
   /* --- Dashboard Handlers --- */
 
+  const [aiError, setAiError] = useState<string | null>(null);
+
   const handleGenerateValues = async () => {
     setIsGenerating(true);
+    setAiError(null);
     try {
       // Create context from saved ideas for style/taste match
       const contextIdeas = ideas.filter(i => i.checked || i.liked).slice(0, 5);
@@ -174,6 +177,7 @@ export default function Home() {
       setGeneratedCandidates(prev => [...newIdeas, ...prev]);
     } catch (e) {
       console.error("AI Generation failed:", e);
+      setAiError("AI unresponsive. Using offline mode.");
       // Fallback to local procedural generation if AI fails completely
       const fallbackIdea = generateIdea(selectedNiche as any);
       setGeneratedCandidates(prev => [fallbackIdea, ...prev]);
@@ -445,6 +449,21 @@ export default function Home() {
               className="w-full max-w-4xl flex flex-col items-center gap-8 pb-32"
             >
               <IdeaGenerator onGenerate={handleGenerateValues} isGenerating={isGenerating} />
+
+
+
+              <AnimatePresence>
+                {aiError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="text-amber-600 text-sm font-medium bg-amber-50 px-4 py-2 rounded-lg border border-amber-200"
+                  >
+                    ⚠️ {aiError}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="w-full flex flex-col gap-6">
                 <AnimatePresence>

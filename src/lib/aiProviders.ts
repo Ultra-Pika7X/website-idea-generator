@@ -20,10 +20,21 @@ interface AIProvider {
 
 // Shared prompt template
 const getPrompt = (niche: string, count: number, context?: string) => `
+You are a highly creative startup consultant.
 Generate exactly ${count} unique, creative, and commercially viable app or website ideas for the "${niche}" niche.
-${context ? `\nCONTEXT/INSPIRATION: The user has previously selected these ideas. Use them to understand the user's taste (e.g. complexity, style) but generate NEW, FRESH concepts (do not simply copy them):\n${context}\n` : ""}
+
+${context ? `### USER CONTEXT ###
+The user has previously engaged with the following ideas. USE THIS DATA to tailor your generation:
+${context}
+
+INSTRUCTIONS:
+1. Analyze the PATTERNS in the user's choices (e.g. Do they like B2B? Simple tools? Complex platforms?).
+2. Generate NEW ideas that match this 'taste profile' but explore UNTAPPED angles.
+3. Do NOT simply copy or slightly rename the context ideas. Invent logical next-steps or adjacent innovations.
+` : "INSTRUCTIONS:\nGenerate high-quality, diverse ideas."}
+
 Ensure the ideas are diverse: some SaaS, some consumer apps, some tools.
-Avoid generic ideas. Focus on solving specific problems.
+Avoid generic ideas (e.g. 'Todo list', 'Weather app'). Focus on solving specific, real-world problems.
 
 Response Format:
 Return a STRICT JSON array (no markdown block, just the raw array) of objects:
