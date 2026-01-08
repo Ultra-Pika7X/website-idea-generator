@@ -1,5 +1,5 @@
-// Multi-provider AI fallback system
-// Tries providers in order until one succeeds
+// Multi-provider AI fallback system - EXPANDED VERSION
+// Tries many providers in order until one succeeds
 
 import { Idea } from "./ideaEngine";
 import { v4 as uuidv4 } from 'uuid';
@@ -7,6 +7,8 @@ import { v4 as uuidv4 } from 'uuid';
 // Provider interface
 interface AIProvider {
     name: string;
+    requiresKey: boolean;
+    keyName?: string;
     generate: (niche: string, count: number, apiKey?: string) => Promise<Idea[]>;
 }
 
@@ -30,8 +32,24 @@ Return a JSON array of objects with this structure (no markdown):
 
 // Parse AI response to Idea objects
 function parseIdeasFromJSON(text: string): Idea[] {
-    const cleanText = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    // Clean up various markdown formats
+    let cleanText = text
+        .replace(/```json\n?/gi, "")
+        .replace(/```\n?/g, "")
+        .replace(/^\s*\[/, "[")
+        .trim();
+
+    // Try to extract JSON array if wrapped in other text
+    const jsonMatch = cleanText.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+        cleanText = jsonMatch[0];
+    }
+
     const templates = JSON.parse(cleanText);
+
+    if (!Array.isArray(templates) || templates.length === 0) {
+        throw new Error("Invalid response: not an array or empty");
+    }
 
     return templates.map((t: any) => ({
         id: uuidv4(),
@@ -48,14 +66,58 @@ function parseIdeasFromJSON(text: string): Idea[] {
     }));
 }
 
-// Provider 1: Pollinations (FREE, no key required)
+// === PROVIDERS ===
+
+// Provider 1: Groq (FREE, 14,400 requests/day, super fast)
+const groqProvider: AIProvider = {
+    name: "Groq",
+    requiresKey: true,
+    keyName: "groq_api_key",
+    generate: async (niche: string, count: number, apiKey?: string) => {
+        const key = apiKey || (typeof localStorage !== 'undefined' ? localStorage.getItem("groq_api_key") : null);
+        if (!key) throw new Error("No Groq API key");
+
+        console.log("[AI] Trying Groq...");
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${key}`,
+            },
+            body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [{ role: "user", content: getPrompt(niche, count) }],
+                temperature: 0.7,
+            }),
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`Groq error ${response.status}: ${err}`);
+        }
+
+        const data = await response.json();
+        const text = data.choices[0].message.content;
+        return parseIdeasFromJSON(text);
+    }
+};
+
+// Provider 2: Pollinations (FREE, no key required)
 const pollinationsProvider: AIProvider = {
     name: "Pollinations",
+    requiresKey: false,
     generate: async (niche: string, count: number) => {
         console.log("[AI] Trying Pollinations...");
-        const prompt = encodeURIComponent(getPrompt(niche, count));
-        const response = await fetch(`https://text.pollinations.ai/${prompt}`, {
-            method: 'GET',
+
+        // Use POST endpoint for better control
+        const response = await fetch("https://text.pollinations.ai/", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messages: [{ role: "user", content: getPrompt(niche, count) }],
+                model: "openai",
+                jsonMode: true,
+            }),
         });
 
         if (!response.ok) {
@@ -67,9 +129,11 @@ const pollinationsProvider: AIProvider = {
     }
 };
 
-// Provider 2: Gemini (requires API key)
+// Provider 3: Gemini (requires API key)
 const geminiProvider: AIProvider = {
     name: "Gemini",
+    requiresKey: true,
+    keyName: "gemini_api_key",
     generate: async (niche: string, count: number, apiKey?: string) => {
         if (!apiKey) throw new Error("No Gemini API key");
 
@@ -84,13 +148,13 @@ const geminiProvider: AIProvider = {
     }
 };
 
-// Provider 3: OpenRouter free models (uses DeepSeek free)
+// Provider 4: OpenRouter (free DeepSeek model)
 const openRouterProvider: AIProvider = {
     name: "OpenRouter",
-    generate: async (niche: string, count: number, apiKey?: string) => {
-        // OpenRouter requires a key, but offers free models
-        // User can set OPENROUTER_KEY in localStorage
-        const key = apiKey || (typeof localStorage !== 'undefined' ? localStorage.getItem("openrouter_key") : null);
+    requiresKey: true,
+    keyName: "openrouter_key",
+    generate: async (niche: string, count: number) => {
+        const key = typeof localStorage !== 'undefined' ? localStorage.getItem("openrouter_key") : null;
         if (!key) throw new Error("No OpenRouter API key");
 
         console.log("[AI] Trying OpenRouter...");
@@ -116,11 +180,144 @@ const openRouterProvider: AIProvider = {
     }
 };
 
-// Provider order (Pollinations first since it's free and keyless)
+// Provider 5: Cohere (5000 generations/month free)
+const cohereProvider: AIProvider = {
+    name: "Cohere",
+    requiresKey: true,
+    keyName: "cohere_api_key",
+    generate: async (niche: string, count: number) => {
+        const key = typeof localStorage !== 'undefined' ? localStorage.getItem("cohere_api_key") : null;
+        if (!key) throw new Error("No Cohere API key");
+
+        console.log("[AI] Trying Cohere...");
+        const response = await fetch("https://api.cohere.ai/v1/chat", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${key}`,
+            },
+            body: JSON.stringify({
+                model: "command-r-plus",
+                message: getPrompt(niche, count),
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Cohere error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const text = data.text;
+        return parseIdeasFromJSON(text);
+    }
+};
+
+// Provider 6: HuggingFace Inference (free tier)
+const huggingFaceProvider: AIProvider = {
+    name: "HuggingFace",
+    requiresKey: true,
+    keyName: "huggingface_key",
+    generate: async (niche: string, count: number) => {
+        const key = typeof localStorage !== 'undefined' ? localStorage.getItem("huggingface_key") : null;
+        if (!key) throw new Error("No HuggingFace API key");
+
+        console.log("[AI] Trying HuggingFace...");
+        const response = await fetch("https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${key}`,
+            },
+            body: JSON.stringify({
+                inputs: getPrompt(niche, count),
+                parameters: { max_new_tokens: 2000 },
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`HuggingFace error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const text = data[0]?.generated_text || "";
+        return parseIdeasFromJSON(text);
+    }
+};
+
+// Provider 7: Together AI (some free models)
+const togetherProvider: AIProvider = {
+    name: "Together",
+    requiresKey: true,
+    keyName: "together_api_key",
+    generate: async (niche: string, count: number) => {
+        const key = typeof localStorage !== 'undefined' ? localStorage.getItem("together_api_key") : null;
+        if (!key) throw new Error("No Together API key");
+
+        console.log("[AI] Trying Together AI...");
+        const response = await fetch("https://api.together.xyz/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${key}`,
+            },
+            body: JSON.stringify({
+                model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+                messages: [{ role: "user", content: getPrompt(niche, count) }],
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Together error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const text = data.choices[0].message.content;
+        return parseIdeasFromJSON(text);
+    }
+};
+
+// Provider 8: Cerebras (free tier)
+const cerebrasProvider: AIProvider = {
+    name: "Cerebras",
+    requiresKey: true,
+    keyName: "cerebras_api_key",
+    generate: async (niche: string, count: number) => {
+        const key = typeof localStorage !== 'undefined' ? localStorage.getItem("cerebras_api_key") : null;
+        if (!key) throw new Error("No Cerebras API key");
+
+        console.log("[AI] Trying Cerebras...");
+        const response = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${key}`,
+            },
+            body: JSON.stringify({
+                model: "llama3.1-8b",
+                messages: [{ role: "user", content: getPrompt(niche, count) }],
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Cerebras error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const text = data.choices[0].message.content;
+        return parseIdeasFromJSON(text);
+    }
+};
+
+// Provider order (keyless first, then most generous free tiers)
 const providers: AIProvider[] = [
-    pollinationsProvider,
-    geminiProvider,
-    openRouterProvider,
+    pollinationsProvider,   // No key needed, unlimited
+    groqProvider,           // 14,400 req/day free
+    geminiProvider,         // User's key
+    openRouterProvider,     // Free models available
+    togetherProvider,       // Free Llama models
+    cohereProvider,         // 5000 gen/month
+    huggingFaceProvider,    // Free inference
+    cerebrasProvider,       // Fast inference
 ];
 
 // Main function: try providers in order until one succeeds
@@ -133,20 +330,26 @@ export async function generateIdeasWithFallback(
 
     for (const provider of providers) {
         try {
-            // Skip Gemini if no key
-            if (provider.name === "Gemini" && !geminiApiKey) {
-                console.log(`[AI] Skipping ${provider.name} (no key)`);
-                continue;
+            // Skip providers that require keys if none available
+            if (provider.requiresKey) {
+                const hasKey = provider.keyName === "gemini_api_key"
+                    ? !!geminiApiKey
+                    : typeof localStorage !== 'undefined' && !!localStorage.getItem(provider.keyName!);
+
+                if (!hasKey) {
+                    console.log(`[AI] Skipping ${provider.name} (no key)`);
+                    continue;
+                }
             }
 
             const ideas = await provider.generate(niche, count, geminiApiKey);
 
             if (ideas && ideas.length > 0) {
-                console.log(`[AI] Success with ${provider.name}!`);
+                console.log(`[AI] ✅ Success with ${provider.name}! Generated ${ideas.length} ideas`);
                 return ideas;
             }
         } catch (error: any) {
-            console.error(`[AI] ${provider.name} failed:`, error.message);
+            console.error(`[AI] ❌ ${provider.name} failed:`, error.message);
             errors.push(`${provider.name}: ${error.message}`);
         }
     }
@@ -155,6 +358,13 @@ export async function generateIdeasWithFallback(
     console.error("[AI] All providers failed:", errors);
     throw new Error(`All AI providers failed: ${errors.join("; ")}`);
 }
+
+// Export provider list for settings UI
+export const availableProviders = providers.map(p => ({
+    name: p.name,
+    requiresKey: p.requiresKey,
+    keyName: p.keyName,
+}));
 
 // Re-export for backward compatibility
 export { parseIdeasFromJSON };
