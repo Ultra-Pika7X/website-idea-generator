@@ -48,6 +48,14 @@ export default function Home() {
   const [isExpanding, setIsExpanding] = useState(false);
   const [isSaving, setIsSaving] = useState(false); // Add loading state for continue button
 
+  // History Filtering
+  const [historyTab, setHistoryTab] = useState<'all' | 'liked' | 'todo'>('all');
+  const filteredHistoryIdeas = ideas.filter(idea => {
+    if (historyTab === 'liked') return idea.liked;
+    if (historyTab === 'todo') return idea.checked;
+    return true;
+  }).sort((a, b) => b.createdAt - a.createdAt);
+
   // Load ideas on mount
   useEffect(() => {
     // If user has saved ideas, go straight to dashboard
@@ -186,38 +194,57 @@ export default function Home() {
     }
   };
 
-  const handleSaveGenerated = async (idea: Idea) => {
+  const handleSaveToHistory = async (idea: Idea) => {
     await db.saveIdea(idea);
-    setIdeas(prev => [idea, ...prev]);
-    // Remove from candidates
+    setIdeas(prev => {
+      if (prev.find(i => i.id === idea.id)) return prev;
+      return [idea, ...prev];
+    });
+    // Remove from candidates if it was one
     setGeneratedCandidates(prev => prev.filter(i => i.id !== idea.id));
   };
 
-  const handleDismissGenerated = (id: string) => {
-    setGeneratedCandidates(prev => prev.filter(i => i.id !== id));
-  }
+  const handleLikeIdea = async (id: string, isCandidate: boolean = false) => {
+    let idea = isCandidate ? generatedCandidates.find(i => i.id === id) : ideas.find(i => i.id === id);
+    if (!idea) return;
 
-  const handleLike = async (id: string) => {
-    const idea = ideas.find(i => i.id === id);
-    if (idea) {
-      const updated = { ...idea, liked: !idea.liked };
+    const updated = { ...idea, liked: !idea.liked };
+
+    // Save to DB if it's a candidate being liked for the first time
+    if (isCandidate) {
+      await db.saveIdea(updated);
+      setIdeas(prev => [updated, ...prev]);
+      setGeneratedCandidates(prev => prev.filter(i => i.id !== id));
+    } else {
       await db.updateIdea(updated);
       setIdeas(prev => prev.map(i => i.id === id ? updated : i));
     }
   };
 
-  const handleCheck = async (id: string) => {
-    const idea = ideas.find(i => i.id === id);
-    if (idea) {
-      const updated = { ...idea, checked: !idea.checked };
+  const handleCheckIdea = async (id: string, isCandidate: boolean = false) => {
+    let idea = isCandidate ? generatedCandidates.find(i => i.id === id) : ideas.find(i => i.id === id);
+    if (!idea) return;
+
+    const updated = { ...idea, checked: !idea.checked };
+
+    // Save to DB if it's a candidate being saved for the first time
+    if (isCandidate) {
+      await db.saveIdea(updated);
+      setIdeas(prev => [updated, ...prev]);
+      setGeneratedCandidates(prev => prev.filter(i => i.id !== id));
+    } else {
       await db.updateIdea(updated);
       setIdeas(prev => prev.map(i => i.id === id ? updated : i));
     }
   };
 
-  const handleDelete = async (id: string) => {
-    await db.deleteIdea(id);
-    setIdeas(prev => prev.filter(i => i.id !== id));
+  const handleDeleteIdea = async (id: string, isCandidate: boolean = false) => {
+    if (isCandidate) {
+      setGeneratedCandidates(prev => prev.filter(i => i.id !== id));
+    } else {
+      await db.deleteIdea(id);
+      setIdeas(prev => prev.filter(i => i.id !== id));
+    }
   };
 
   const handleExpandIdea = async (idea: Idea) => {
@@ -237,16 +264,25 @@ export default function Home() {
       setIdeas(prev => prev.map(i => i.id === idea.id ? updatedIdea : i));
       setSelectedIdea(updatedIdea); // Update modal view
     } catch (e) {
+      console.error(e);
       alert("Failed to expand idea.");
     } finally {
       setIsExpanding(false);
     }
   };
 
+  const handleDashboardCardClick = (idea: Idea) => {
+    // Instead of saving, just open the Blueprint modal
+    setSelectedIdea(idea);
+  };
+
   const handleGenerateApp = async (idea: Idea) => {
-    // 1. Check for API Key
-    const apiKey = localStorage.getItem("gemini_api_key");
-    if (!apiKey) {
+    // 1. Check for any available AI Key
+    const geminiKey = localStorage.getItem("gemini_api_key");
+    const groqKey = localStorage.getItem("groq_api_key");
+    const openRouterKey = localStorage.getItem("openrouter_api_key");
+
+    if (!geminiKey && !groqKey && !openRouterKey) {
       setIsApiKeyModalOpen(true);
       return;
     }
@@ -260,11 +296,12 @@ export default function Home() {
     setIsGeneratingApp(true); // Show loading state in modal
 
     try {
-      const appCode = await generateAppCode(idea, localStorage.getItem("gemini_api_key") || undefined);
+      // generateAppCode now handles its own key priority (OpenRouter -> Groq -> Gemini)
+      const appCode = await generateAppCode(idea, geminiKey || undefined);
       setGeneratedApp(appCode);
     } catch (e) {
       console.error(e);
-      alert("Failed to generate prototype. Please check your API key.");
+      alert("Failed to generate prototype. Please check your API keys in Settings.");
       setIsAppPreviewOpen(false); // Close if failed
     } finally {
       setIsGeneratingApp(false);
@@ -320,9 +357,9 @@ export default function Home() {
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
           onSelectIdea={(idea) => { setSelectedIdea(idea); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
-          onLike={handleLike}
-          onCheck={handleCheck}
-          onDelete={handleDelete}
+          onLike={(id) => handleLikeIdea(id)}
+          onCheck={(id) => handleCheckIdea(id)}
+          onDelete={(id) => handleDeleteIdea(id)}
           onViewHistory={() => {
             setView("HISTORY");
             if (window.innerWidth < 1024) setIsSidebarOpen(false);
@@ -465,24 +502,24 @@ export default function Home() {
                 )}
               </AnimatePresence>
 
-              <div className="w-full flex flex-col gap-6">
+              <div className="w-full grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 <AnimatePresence>
                   {generatedCandidates.map((idea) => (
                     <motion.div
                       key={idea.id}
-                      initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9, height: 0 }}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
                       className="w-full"
                     >
                       <IdeaCard
                         idea={idea}
-                        onLike={() => { }}
-                        onCheck={() => { }}
-                        onDelete={() => handleDismissGenerated(idea.id)}
-                        onClick={() => handleSaveGenerated(idea)}
+                        onLike={(id) => handleLikeIdea(id, true)}
+                        onCheck={(id) => handleCheckIdea(id, true)}
+                        onDelete={(id) => handleDeleteIdea(id, true)}
+                        onClick={() => handleDashboardCardClick(idea)}
+                        compact={true}
                       />
-                      <p className="text-center text-slate-500 mt-2 text-sm">Click card to save to history</p>
                     </motion.div>
                   ))}
                 </AnimatePresence>
@@ -499,29 +536,46 @@ export default function Home() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="w-full max-w-7xl flex flex-col items-start gap-8 pb-32"
+              className="w-full max-w-7xl flex flex-col items-start gap-8 pb-32 px-4"
             >
-              <button
-                onClick={() => setView("DASHBOARD")}
-                className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition-colors bg-white/50 px-4 py-2 rounded-lg"
-              >
-                <ArrowRight className="w-5 h-5 rotate-180" /> Back to Dashboard
-              </button>
+              <div className="w-full flex justify-between items-center bg-white/40 backdrop-blur-md p-4 rounded-2xl border border-white/30">
+                <button
+                  onClick={() => setView("DASHBOARD")}
+                  className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition-colors"
+                >
+                  <ArrowRight className="w-5 h-5 rotate-180" /> Back to Dashboard
+                </button>
 
-              <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {ideas.filter(i => i.checked).length === 0 ? (
-                  <div className="col-span-full text-center py-20">
-                    <p className="text-xl text-slate-500">No saved ideas yet.</p>
-                    <p className="text-slate-400">Click the checkmark icon on ideas to save them here.</p>
+                <div className="flex bg-slate-100/50 rounded-xl p-1 border border-slate-200">
+                  <button
+                    onClick={() => setHistoryTab('all')}
+                    className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all", historyTab === 'all' ? "bg-white shadow text-blue-600" : "text-slate-500 hover:text-slate-700")}
+                  >All</button>
+                  <button
+                    onClick={() => setHistoryTab('liked')}
+                    className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all", historyTab === 'liked' ? "bg-white shadow text-pink-500" : "text-slate-500 hover:text-slate-700")}
+                  >Liked</button>
+                  <button
+                    onClick={() => setHistoryTab('todo')}
+                    className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all", historyTab === 'todo' ? "bg-white shadow text-green-600" : "text-slate-500 hover:text-slate-700")}
+                  >Saved</button>
+                </div>
+              </div>
+
+              <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredHistoryIdeas.length === 0 ? (
+                  <div className="col-span-full text-center py-20 bg-white/20 rounded-3xl border border-dashed border-white/40">
+                    <p className="text-xl text-slate-500 font-medium">No {historyTab !== 'all' ? historyTab : ""} ideas found.</p>
+                    <p className="text-slate-400">Click Like or Save icons on your generated ideas to populate this.</p>
                   </div>
                 ) : (
-                  ideas.filter(i => i.checked).map((idea) => (
+                  filteredHistoryIdeas.map((idea) => (
                     <IdeaCard
                       key={idea.id}
                       idea={idea}
-                      onLike={handleLike}
-                      onCheck={handleCheck}
-                      onDelete={handleDelete}
+                      onLike={handleLikeIdea}
+                      onCheck={handleCheckIdea}
+                      onDelete={handleDeleteIdea}
                       onClick={() => setSelectedIdea(idea)}
                     />
                   ))

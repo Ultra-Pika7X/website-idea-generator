@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Code, Play, Download, Copy, Loader2, Sparkles, FileCode, FileJson, FileType, Check } from "lucide-react";
-import { GeneratedApp } from "@/lib/gemini";
+import { X, Play, Download, Copy, Loader2, Sparkles, FileCode, FileJson, FileType, Folder, File, ChevronRight, Monitor } from "lucide-react";
+import { GeneratedApp, GeneratedFile } from "@/lib/gemini";
 import { cn } from "@/lib/utils";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -13,91 +13,91 @@ interface AppPreviewModalProps {
     isLoading: boolean;
 }
 
-type Tab = "preview" | "html" | "css" | "js";
-
 export function AppPreviewModal({ isOpen, onClose, app, isLoading }: AppPreviewModalProps) {
-    const [activeTab, setActiveTab] = useState<Tab>("preview");
+    const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<"code" | "preview">("preview");
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-    // Construct the full HTML document for preview
-    const fullHtml = app ? `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generated App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-${app.css || '/* No CSS */'}
-    </style>
-</head>
-<body class="bg-gray-50 min-h-screen text-slate-900">
-${app.html || '<!-- No HTML -->'}
+    // Initialize selected file and preview when app changes
+    useEffect(() => {
+        if (app && app.files.length > 0) {
+            setSelectedFilePath(app.entryPoint || app.files[0].path);
+            generatePreview(app);
+        }
+        return () => {
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+        };
+    }, [app]);
 
-    <script>
-${app.js || '// No JS'}
-    </script>
-</body>
-</html>` : "";
+    const selectedFile = useMemo(() =>
+        app?.files.find(f => f.path === selectedFilePath) || null
+        , [app, selectedFilePath]);
+
+    const generatePreview = async (generatedApp: GeneratedApp) => {
+        if (!generatedApp.files.length) return;
+
+        // Cleanup old preview
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+        // 1. Create a map of Path -> Blob URL
+        const blobMap: Record<string, string> = {};
+
+        // We do two passes. First to create blobs for CSS/JS/Assets
+        generatedApp.files.forEach(file => {
+            if (file.path !== generatedApp.entryPoint) {
+                const blob = new Blob([file.content], { type: getMimeType(file.path) });
+                blobMap[file.path] = URL.createObjectURL(blob);
+            }
+        });
+
+        // 2. Find entry point (usually index.html)
+        const entryFile = generatedApp.files.find(f => f.path === generatedApp.entryPoint);
+        if (!entryFile) return;
+
+        // 3. Simple replacement logic for common links/scripts
+        // This makes the files "talk" to each other in the browser sandbox
+        let processedHtml = entryFile.content;
+
+        // Add Tailwind if not present (optional, but good for prototypes)
+        if (!processedHtml.includes("tailwindcss.com")) {
+            processedHtml = processedHtml.replace("</head>", `<script src="https://cdn.tailwindcss.com"></script>\n</head>`);
+        }
+
+        Object.entries(blobMap).forEach(([originalPath, blobUrl]) => {
+            // Replace local references like src="js/main.js" with src="blob:..."
+            // Using a simple regex that handles quotes
+            const escapedPath = originalPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`(src|href)=["']\\.?/?${escapedPath}["']`, 'g');
+            processedHtml = processedHtml.replace(regex, `$1="${blobUrl}"`);
+        });
+
+        // 4. Create final entry blob
+        const finalBlob = new Blob([processedHtml], { type: "text/html" });
+        const finalUrl = URL.createObjectURL(finalBlob);
+        setPreviewUrl(finalUrl);
+    };
+
+    const getMimeType = (path: string) => {
+        if (path.endsWith(".css")) return "text/css";
+        if (path.endsWith(".js")) return "application/javascript";
+        if (path.endsWith(".json")) return "application/json";
+        return "text/plain";
+    };
 
     const handleDownloadZip = async () => {
         if (!app) return;
         const zip = new JSZip();
-        zip.file("index.html", app.html || "<!-- No HTML -->");
-        zip.file("style.css", app.css || "/* No CSS */");
-        zip.file("script.js", app.js || "// No JS");
-
-        // Also add a "readme" or "combined" file for convenience
-        zip.file("demo_full.html", fullHtml);
-
+        app.files.forEach(file => {
+            zip.file(file.path, file.content);
+        });
         const content = await zip.generateAsync({ type: "blob" });
-        saveAs(content, "prototype_code.zip");
-    };
-
-    const handleDownloadHtml = () => {
-        if (!app) return;
-
-        let content = fullHtml;
-        let filename = "index.html";
-        let type = "text/html";
-
-        // Download specific file based on active tab
-        if (activeTab === "css") {
-            content = app.css || "";
-            filename = "style.css";
-            type = "text/css";
-        } else if (activeTab === "js") {
-            content = app.js || "";
-            filename = "script.js";
-            type = "text/javascript";
-        } else if (activeTab === "html") {
-            content = app.html || "";
-            // Keep index.html for partial HTML or maybe 'fragment.html' 
-            // but user probably wants the structure. Let's just download the fragment.
-            filename = "index.html";
-            type = "text/html";
-        }
-
-        const blob = new Blob([content], { type });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        saveAs(content, "web_prototype_project.zip");
     };
 
     const handleCopy = () => {
-        let content = "";
-        if (activeTab === "preview" || activeTab === "html") content = app?.html || "";
-        if (activeTab === "css") content = app?.css || "";
-        if (activeTab === "js") content = app?.js || "";
-
-        if (content) {
-            navigator.clipboard.writeText(content);
-            alert("Copied to clipboard!");
+        if (selectedFile) {
+            navigator.clipboard.writeText(selectedFile.content);
+            alert("File content copied!");
         }
     };
 
@@ -105,151 +105,190 @@ ${app.js || '// No JS'}
         <AnimatePresence>
             {isOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    {/* Backdrop */}
                     <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-slate-950/90 backdrop-blur-md"
                         onClick={onClose}
                     />
 
-                    {/* Modal Window */}
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="relative w-full max-w-7xl h-[90vh] bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-700"
+                        className="relative w-full max-w-[95vw] h-[92vh] bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-800"
                     >
-                        {/* Header Toolbar */}
-                        <div className="flex items-center justify-between p-3 bg-slate-900 border-b border-slate-700 shrink-0">
-                            {/* Tabs */}
-                            <div className="flex gap-1 bg-slate-800/50 p-1 rounded-lg border border-slate-700">
-                                <button
-                                    onClick={() => setActiveTab("preview")}
-                                    className={cn(
-                                        "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                                        activeTab === "preview" ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:text-white hover:bg-slate-700"
-                                    )}
-                                >
-                                    <Play className="w-4 h-4" /> Preview
-                                </button>
-                                <div className="w-px h-6 bg-slate-700 mx-1 self-center" />
-                                <button
-                                    onClick={() => setActiveTab("html")}
-                                    className={cn(
-                                        "px-3 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                                        activeTab === "html" ? "bg-slate-700 text-orange-400" : "text-slate-400 hover:text-white hover:bg-slate-700"
-                                    )}
-                                >
-                                    <FileCode className="w-4 h-4" /> HTML
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab("css")}
-                                    className={cn(
-                                        "px-3 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                                        activeTab === "css" ? "bg-slate-700 text-blue-400" : "text-slate-400 hover:text-white hover:bg-slate-700"
-                                    )}
-                                >
-                                    <FileType className="w-4 h-4" /> CSS
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab("js")}
-                                    className={cn(
-                                        "px-3 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                                        activeTab === "js" ? "bg-slate-700 text-yellow-400" : "text-slate-400 hover:text-white hover:bg-slate-700"
-                                    )}
-                                >
-                                    <FileJson className="w-4 h-4" /> JS
-                                </button>
+                        {/* IDE Header */}
+                        <div className="h-14 flex items-center justify-between px-4 bg-slate-900 border-b border-slate-800 shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50" />
+                                    <div className="w-3 h-3 rounded-full bg-amber-500/20 border border-amber-500/50" />
+                                    <div className="w-3 h-3 rounded-full bg-emerald-500/20 border border-emerald-500/50" />
+                                </div>
+                                <div className="h-4 w-px bg-slate-800" />
+                                <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
+                                    <Sparkles className="w-4 h-4 text-blue-400" />
+                                    <span>AI Code Generator v2.0 (DeepSeek Logic)</span>
+                                </div>
                             </div>
 
-                            {/* Loading Indicator */}
-                            {isLoading && (
-                                <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-blue-900/20 text-blue-400 rounded-full border border-blue-900/50 animate-pulse">
-                                    <Sparkles className="w-4 h-4" />
-                                    <span className="text-sm font-semibold">AI is coding your prototype...</span>
-                                </div>
-                            )}
-
-                            {/* Actions */}
                             <div className="flex items-center gap-2">
-                                {!isLoading && app && (
-                                    <>
-                                        <button
-                                            onClick={handleCopy}
-                                            className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors border border-transparent hover:border-slate-700"
-                                            title="Copy current file"
-                                        >
-                                            <Copy className="w-5 h-5" />
-                                        </button>
-                                        <div className="h-8 w-px bg-slate-700 mx-1" />
-                                        <button
-                                            onClick={handleDownloadHtml}
-                                            className="hidden sm:flex px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors items-center gap-2"
-                                            title="Download current file"
-                                        >
-                                            <Download className="w-4 h-4" /> File
-                                        </button>
-                                        <button
-                                            onClick={handleDownloadZip}
-                                            className="hidden sm:flex px-4 py-2 bg-slate-100 hover:bg-white text-slate-900 rounded-lg text-sm font-bold transition-all items-center gap-2 shadow-sm hover:shadow-md"
-                                        >
-                                            <Download className="w-4 h-4" /> ZIP
-                                        </button>
-                                    </>
-                                )}
-                                <button
-                                    onClick={onClose}
-                                    className="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors text-slate-500 ml-2"
-                                >
+                                <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
+                                    <button
+                                        onClick={() => setViewMode("preview")}
+                                        className={cn("px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-2",
+                                            viewMode === "preview" ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:text-white")}
+                                    >
+                                        <Monitor className="w-4 h-4" /> Preview
+                                    </button>
+                                    <button
+                                        onClick={() => setViewMode("code")}
+                                        className={cn("px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-2",
+                                            viewMode === "code" ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:text-white")}
+                                    >
+                                        <FileCode className="w-4 h-4" /> Code
+                                    </button>
+                                </div>
+                                <div className="h-8 w-px bg-slate-800 mx-2" />
+                                <button onClick={handleDownloadZip} className="flex px-4 py-1.5 bg-slate-100 hover:bg-white text-slate-950 rounded-lg text-sm font-bold transition-all items-center gap-2">
+                                    <Download className="w-4 h-4" /> Export ZIP
+                                </button>
+                                <button onClick={onClose} className="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors text-slate-500">
                                     <X className="w-6 h-6" />
                                 </button>
                             </div>
                         </div>
 
-                        {/* Content Area */}
-                        <div className="flex-1 overflow-hidden relative bg-[#1e1e1e]">
+                        {/* IDE Content */}
+                        <div className="flex-1 flex overflow-hidden">
                             {isLoading ? (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 z-10 bg-slate-900">
-                                    <div className="relative">
-                                        <div className="absolute inset-0 bg-blue-500 blur-xl opacity-20 animate-pulse rounded-full" />
-                                        <Loader2 className="w-16 h-16 animate-spin text-blue-500 relative z-10" />
+                                <div className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-slate-950">
+                                    <div className="relative mb-12">
+                                        <div className="absolute inset-0 bg-blue-500/10 blur-3xl animate-pulse rounded-full" />
+                                        <div className="relative flex items-center justify-center">
+                                            <Loader2 className="w-20 h-20 animate-spin text-blue-500/40" />
+                                            <div className="absolute flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                                <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <h3 className="text-xl font-bold text-white mt-8 mb-2">Building Prototype</h3>
-                                    <p className="text-slate-400 max-w-sm text-center">Writing HTML structure, applying Tailwind styles, and implementing JavaScript logic...</p>
+
+                                    <div className="space-y-6 w-full max-w-sm px-6">
+                                        <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-2xl border border-slate-800 animate-in fade-in slide-in-from-bottom-4">
+                                            <div className="p-2 bg-blue-500/10 rounded-lg">
+                                                <Brain className="w-5 h-5 text-blue-400" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="text-sm font-bold text-white">Architect Active</h4>
+                                                <p className="text-[10px] text-slate-500">DeepSeek is designing the project blueprint...</p>
+                                            </div>
+                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                        </div>
+
+                                        <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-2xl border border-slate-800 opacity-50">
+                                            <div className="p-2 bg-orange-500/10 rounded-lg">
+                                                <Cpu className="w-5 h-5 text-orange-400" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="text-sm font-bold text-slate-400">Workers Standing By</h4>
+                                                <p className="text-[10px] text-slate-600">Llama & Gemini ready to generate components</p>
+                                            </div>
+                                            <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-12 flex flex-col items-center gap-2">
+                                        <div className="flex items-center gap-2 px-3 py-1 bg-blue-600/10 rounded-full border border-blue-500/20">
+                                            <Sparkles className="w-3 h-3 text-blue-400" />
+                                            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Team Generation Active</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 font-medium italic">Multi-Model Collaboration in progress</p>
+                                    </div>
                                 </div>
                             ) : app ? (
-                                <div className="w-full h-full">
-                                    {activeTab === "preview" && (
-                                        <iframe
-                                            srcDoc={fullHtml}
-                                            className="w-full h-full border-none bg-white"
-                                            title="App Preview"
-                                            sandbox="allow-scripts allow-modals" // Secure sandbox
-                                        />
-                                    )}
+                                <>
+                                    {/* Sidebar: File Explorer */}
+                                    <div className="w-64 bg-slate-950 border-r border-slate-800 overflow-y-auto shrink-0 flex flex-col">
+                                        <div className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-900">Project Files</div>
+                                        <div className="flex-1 p-2 space-y-1">
+                                            {app.files.map(file => (
+                                                <button
+                                                    key={file.path}
+                                                    onClick={() => { setSelectedFilePath(file.path); setViewMode("code"); }}
+                                                    className={cn(
+                                                        "w-full flex items-center gap-3 px-3 py-2 rounded-md transition-all text-xs group",
+                                                        selectedFilePath === file.path
+                                                            ? "bg-blue-600/10 text-blue-400 border border-blue-500/20"
+                                                            : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                                                    )}
+                                                >
+                                                    {file.path.endsWith(".html") ? <FileCode className="w-4 h-4 text-orange-400" /> :
+                                                        file.path.endsWith(".css") ? <FileType className="w-4 h-4 text-blue-400" /> :
+                                                            <FileJson className="w-4 h-4 text-yellow-500" />}
+                                                    <span className="truncate flex-1 text-left whitespace-nowrap overflow-hidden">{file.path}</span>
+                                                    {selectedFilePath === file.path && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="p-4 bg-blue-600/5 mt-auto border-t border-slate-800">
+                                            <p className="text-[10px] text-blue-400 mb-2 font-bold uppercase">Analysis</p>
+                                            <p className="text-[10px] text-slate-500 leading-relaxed max-h-32 overflow-y-auto no-scrollbar">{app.explanation}</p>
+                                        </div>
+                                    </div>
 
-                                    {/* Code Editors (Read-only) with proper whitespace handling */}
-                                    {activeTab === "html" && (
-                                        <div className="w-full h-full overflow-auto p-6 font-mono text-sm leading-relaxed text-orange-100">
-                                            <pre className="whitespace-pre-wrap">{app.html}</pre>
-                                        </div>
-                                    )}
-                                    {activeTab === "css" && (
-                                        <div className="w-full h-full overflow-auto p-6 font-mono text-sm leading-relaxed text-blue-100">
-                                            <pre className="whitespace-pre-wrap">{app.css || "/* No custom CSS (using Tailwind) */"}</pre>
-                                        </div>
-                                    )}
-                                    {activeTab === "js" && (
-                                        <div className="w-full h-full overflow-auto p-6 font-mono text-sm leading-relaxed text-yellow-100">
-                                            <pre className="whitespace-pre-wrap">{app.js || "// No JavaScript logic"}</pre>
-                                        </div>
-                                    )}
-                                </div>
+                                    {/* Main Area */}
+                                    <div className="flex-1 flex flex-col relative bg-[#1e1e1e]">
+                                        <AnimatePresence mode="wait">
+                                            {viewMode === "preview" ? (
+                                                <motion.div
+                                                    key="preview"
+                                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                                    className="w-full h-full bg-white relative"
+                                                >
+                                                    {previewUrl ? (
+                                                        <iframe
+                                                            src={previewUrl}
+                                                            className="w-full h-full border-none"
+                                                            title="Production Preview"
+                                                            sandbox="allow-scripts allow-modals allow-forms"
+                                                        />
+                                                    ) : (
+                                                        <div className="flex items-center justify-center h-full text-slate-400">Loading Preview...</div>
+                                                    )}
+                                                </motion.div>
+                                            ) : (
+                                                <motion.div
+                                                    key="code"
+                                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                                    className="w-full h-full flex flex-col"
+                                                >
+                                                    <div className="h-10 border-b border-slate-800 bg-slate-900 flex items-center justify-between px-4 shrink-0">
+                                                        <div className="flex items-center gap-2 text-[11px] font-mono text-slate-500">
+                                                            <ChevronRight className="w-3 h-3" />
+                                                            {selectedFilePath}
+                                                        </div>
+                                                        <button onClick={handleCopy} className="p-1 hover:bg-slate-800 rounded text-slate-500 hover:text-slate-300">
+                                                            <Copy className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex-1 overflow-auto p-6 font-mono text-xs leading-relaxed custom-scrollbar">
+                                                        <pre className="text-slate-300 whitespace-pre-wrap">
+                                                            <code>{selectedFile?.content}</code>
+                                                        </pre>
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+                                </>
                             ) : (
                                 <div className="flex-1 flex items-center justify-center text-slate-600">
-                                    <p>Select "Generate Prototype" to see code.</p>
+                                    <div className="text-center">
+                                        <Play className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                                        <p>Architect an idea to generate its source code.</p>
+                                    </div>
                                 </div>
                             )}
                         </div>

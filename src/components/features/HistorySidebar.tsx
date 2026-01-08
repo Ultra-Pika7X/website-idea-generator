@@ -61,6 +61,10 @@ export const HistorySidebar: React.FC<HistorySidebarProps> = ({
                                 onClick={() => setFilter('liked')}
                                 className={cn("px-2 py-1 rounded text-xs font-medium transition-colors", filter === 'liked' ? "bg-white shadow text-pink-500" : "text-slate-500 hover:text-slate-700")}
                             >Liked</button>
+                            <button
+                                onClick={() => setFilter('todo')}
+                                className={cn("px-2 py-1 rounded text-xs font-medium transition-colors", filter === 'todo' ? "bg-white shadow text-green-600" : "text-slate-500 hover:text-slate-700")}
+                            >Saved</button>
                         </div>
                         <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-200">
                             <X className="w-5 h-5" />
