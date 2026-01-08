@@ -53,17 +53,21 @@ async function generateAppCodeGroq(idea: Idea, apiKey: string): Promise<Generate
     Niche: ${idea.tags.join(", ")}
 
     Requirements:
-    1. Output MUST be valid HTML containing embedded CSS (<style>) and JS (<script>).
-    2. It should look modern, clean, and use a nice sans-serif font system.
-    3. It MUST be interactive and functional (e.g., if it's a calculator, it calculates; if it's a todo list, it adds items).
-    4. Use TailwindCSS via CDN script if needed for easy styling, or just clean vanilla CSS.
-    5. Do not use external API calls that require other keys. Mock data if necessary.
+    1. Output MUST be three separate strings: 'html' (structure), 'css' (styling), 'js' (logic).
+    2. HTML should NOT contain <style> or <script> tags. Putting them in separate fields.
+    3. Use modern, semantic HTML5.
+    4. CSS must be clean, modern, and responsive. You can use standard CSS variables.
+    5. JS must be vanilla modern ES6+.
+    6. Ensure the app is fully functional and interactive (no placeholders).
+    7. Do EXACTLY what the idea describes.
 
     Response Format:
-    Return a JSON object with the following structure (do not use markdown code blocks, just raw JSON):
+    Return a STRICT JSON object (no markdown, just raw JSON):
     {
-      "html": "The complete HTML structure including <style> and <script> tags",
-      "explanation": "A gentle 2-sentence summary of what you built"
+      "html": "<div ...>...</div>",
+      "css": "body { ... }",
+      "js": "const app = ...",
+      "explanation": "Brief summary of features"
     }
   `;
 

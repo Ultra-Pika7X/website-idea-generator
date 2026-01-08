@@ -370,10 +370,13 @@ export default function Home() {
                       idea={idea}
                       onLike={() => { }}
                       onCheck={() => { }}
-                      onDelete={() => { }}
-                      onClick={() => setSelectedIdea(idea)}
-                      compact={true}
-                      selected={selectedBatchIds.has(idea.id)}
+                      onClick={() => {
+                        if (view === "SELECTION") {
+                          handleBatchCardClick(idea);
+                        } else {
+                          setSelectedIdea(idea);
+                        }
+                      }}
                     />
                   </motion.div>
                 ))}

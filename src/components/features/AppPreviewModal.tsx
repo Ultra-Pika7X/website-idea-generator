@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Code, Play, Download, Copy, Loader2, Sparkles } from "lucide-react";
+import { X, Code, Play, Download, Copy, Loader2, Sparkles, FileCode, FileJson, FileType } from "lucide-react";
 import { GeneratedApp } from "@/lib/gemini";
 import { cn } from "@/lib/utils";
 
@@ -11,29 +11,32 @@ interface AppPreviewModalProps {
     isLoading: boolean;
 }
 
-export function AppPreviewModal({ isOpen, onClose, app, isLoading }: AppPreviewModalProps) {
-    const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
+type Tab = "preview" | "html" | "css" | "js";
 
-    // Construct the full HTML document with script/styles
+export function AppPreviewModal({ isOpen, onClose, app, isLoading }: AppPreviewModalProps) {
+    const [activeTab, setActiveTab] = useState<Tab>("preview");
+
+    // Construct the full HTML document for preview and download
     const fullHtml = app ? `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <script src="https://cdn.tailwindcss.com"></script>
-      <style>
-        ${app.css || ''}
-      </style>
-    </head>
-    <body class="bg-white">
-      ${app.html || ''}
-      <script>
-        ${app.js || ''}
-      </script>
-    </body>
-    </html>
-  ` : "";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generated App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+${app.css || '/* No CSS */'}
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-slate-900">
+${app.html || '<!-- No HTML -->'}
+
+    <script>
+${app.js || '// No JS'}
+    </script>
+</body>
+</html>` : "";
 
     const handleDownload = () => {
         if (!fullHtml) return;
@@ -41,7 +44,7 @@ export function AppPreviewModal({ isOpen, onClose, app, isLoading }: AppPreviewM
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "generated-app.html";
+        a.download = "index.html";
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -49,8 +52,14 @@ export function AppPreviewModal({ isOpen, onClose, app, isLoading }: AppPreviewM
     };
 
     const handleCopy = () => {
-        if (fullHtml) {
-            navigator.clipboard.writeText(fullHtml);
+        let content = "";
+        if (activeTab === "preview" || activeTab === "html") content = app?.html || "";
+        if (activeTab === "css") content = app?.css || "";
+        if (activeTab === "js") content = app?.js || "";
+
+        if (content) {
+            navigator.clipboard.writeText(content);
+            alert("Copied to clipboard!");
         }
     };
 
@@ -58,84 +67,114 @@ export function AppPreviewModal({ isOpen, onClose, app, isLoading }: AppPreviewM
         <AnimatePresence>
             {isOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                        className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"
                         onClick={onClose}
                     />
 
+                    {/* Modal Window */}
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="relative w-full max-w-6xl h-[85vh] bg-slate-50 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+                        className="relative w-full max-w-7xl h-[90vh] bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-700"
                     >
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-4 bg-white border-b border-slate-200 shrink-0">
-                            <div className="flex items-center gap-4">
-                                <div className="flex bg-slate-100 rounded-lg p-1">
-                                    <button
-                                        onClick={() => setActiveTab("preview")}
-                                        className={cn(
-                                            "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                                            activeTab === "preview" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                                        )}
-                                    >
-                                        <Play className="w-4 h-4" /> Preview
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab("code")}
-                                        className={cn(
-                                            "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                                            activeTab === "code" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                                        )}
-                                    >
-                                        <Code className="w-4 h-4" /> Code
-                                    </button>
-                                </div>
-                                {isLoading && (
-                                    <div className="flex items-center gap-2 text-blue-600 animate-pulse">
-                                        <Sparkles className="w-4 h-4" />
-                                        <span className="text-sm font-medium">AI is coding...</span>
-                                    </div>
-                                )}
+                        {/* Header Toolbar */}
+                        <div className="flex items-center justify-between p-3 bg-slate-900 border-b border-slate-700 shrink-0">
+                            {/* Tabs */}
+                            <div className="flex gap-1 bg-slate-800/50 p-1 rounded-lg border border-slate-700">
+                                <button
+                                    onClick={() => setActiveTab("preview")}
+                                    className={cn(
+                                        "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+                                        activeTab === "preview" ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:text-white hover:bg-slate-700"
+                                    )}
+                                >
+                                    <Play className="w-4 h-4" /> Preview
+                                </button>
+                                <div className="w-px h-6 bg-slate-700 mx-1 self-center" />
+                                <button
+                                    onClick={() => setActiveTab("html")}
+                                    className={cn(
+                                        "px-3 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+                                        activeTab === "html" ? "bg-slate-700 text-orange-400" : "text-slate-400 hover:text-white hover:bg-slate-700"
+                                    )}
+                                >
+                                    <FileCode className="w-4 h-4" /> HTML
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab("css")}
+                                    className={cn(
+                                        "px-3 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+                                        activeTab === "css" ? "bg-slate-700 text-blue-400" : "text-slate-400 hover:text-white hover:bg-slate-700"
+                                    )}
+                                >
+                                    <FileType className="w-4 h-4" /> CSS
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab("js")}
+                                    className={cn(
+                                        "px-3 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+                                        activeTab === "js" ? "bg-slate-700 text-yellow-400" : "text-slate-400 hover:text-white hover:bg-slate-700"
+                                    )}
+                                >
+                                    <FileJson className="w-4 h-4" /> JS
+                                </button>
                             </div>
 
+                            {/* Loading Indicator */}
+                            {isLoading && (
+                                <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-blue-900/20 text-blue-400 rounded-full border border-blue-900/50 animate-pulse">
+                                    <Sparkles className="w-4 h-4" />
+                                    <span className="text-sm font-semibold">AI is coding your prototype...</span>
+                                </div>
+                            )}
+
+                            {/* Actions */}
                             <div className="flex items-center gap-2">
                                 {!isLoading && app && (
                                     <>
-                                        <button onClick={handleCopy} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors" title="Copy Code">
+                                        <button
+                                            onClick={handleCopy}
+                                            className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors border border-transparent hover:border-slate-700"
+                                            title="Copy current file"
+                                        >
                                             <Copy className="w-5 h-5" />
                                         </button>
                                         <button
                                             onClick={handleDownload}
-                                            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                            className="hidden sm:flex px-4 py-2 bg-slate-100 hover:bg-white text-slate-900 rounded-lg text-sm font-bold transition-all items-center gap-2 shadow-sm hover:shadow-md"
                                         >
-                                            <Download className="w-4 h-4" /> Download HTML
+                                            <Download className="w-4 h-4" /> Export
                                         </button>
                                     </>
                                 )}
                                 <button
                                     onClick={onClose}
-                                    className="p-2 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors text-slate-400 ml-2"
+                                    className="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors text-slate-500 ml-2"
                                 >
                                     <X className="w-6 h-6" />
                                 </button>
                             </div>
                         </div>
 
-                        {/* Content */}
-                        <div className="flex-1 overflow-hidden relative bg-slate-100">
+                        {/* Content Area */}
+                        <div className="flex-1 overflow-hidden relative bg-[#1e1e1e]">
                             {isLoading ? (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 z-10">
-                                    <Loader2 className="w-12 h-12 animate-spin text-blue-500 mb-4" />
-                                    <p className="font-medium animate-pulse">Generating your app prototype...</p>
-                                    <p className="text-sm mt-2 opacity-60">This typically takes 10-20 seconds.</p>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 z-10 bg-slate-900">
+                                    <div className="relative">
+                                        <div className="absolute inset-0 bg-blue-500 blur-xl opacity-20 animate-pulse rounded-full" />
+                                        <Loader2 className="w-16 h-16 animate-spin text-blue-500 relative z-10" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white mt-8 mb-2">Building Prototype</h3>
+                                    <p className="text-slate-400 max-w-sm text-center">Writing HTML structure, applying Tailwind styles, and implementing JavaScript logic...</p>
                                 </div>
                             ) : app ? (
-                                <>
+                                <div className="w-full h-full">
                                     {activeTab === "preview" && (
                                         <iframe
                                             srcDoc={fullHtml}
@@ -144,15 +183,27 @@ export function AppPreviewModal({ isOpen, onClose, app, isLoading }: AppPreviewM
                                             sandbox="allow-scripts allow-modals" // Secure sandbox
                                         />
                                     )}
-                                    {activeTab === "code" && (
-                                        <div className="w-full h-full overflow-auto p-6 bg-[#1e1e1e] text-slate-300 font-mono text-sm leading-relaxed">
-                                            <pre>{fullHtml}</pre>
+
+                                    {/* Code Editors (Read-only) */}
+                                    {activeTab === "html" && (
+                                        <div className="w-full h-full overflow-auto p-6 font-mono text-sm leading-relaxed text-orange-100">
+                                            <pre>{app.html}</pre>
                                         </div>
                                     )}
-                                </>
+                                    {activeTab === "css" && (
+                                        <div className="w-full h-full overflow-auto p-6 font-mono text-sm leading-relaxed text-blue-100">
+                                            <pre>{app.css || "/* No custom CSS (using Tailwind) */"}</pre>
+                                        </div>
+                                    )}
+                                    {activeTab === "js" && (
+                                        <div className="w-full h-full overflow-auto p-6 font-mono text-sm leading-relaxed text-yellow-100">
+                                            <pre>{app.js || "// No JavaScript logic"}</pre>
+                                        </div>
+                                    )}
+                                </div>
                             ) : (
-                                <div className="flex-1 flex items-center justify-center text-slate-400">
-                                    <p>No app generated yet.</p>
+                                <div className="flex-1 flex items-center justify-center text-slate-600">
+                                    <p>Select "Generate Prototype" to see code.</p>
                                 </div>
                             )}
                         </div>
