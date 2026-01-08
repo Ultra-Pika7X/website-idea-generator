@@ -4,6 +4,12 @@
 import { Idea } from "./ideaEngine";
 import { v4 as uuidv4 } from 'uuid';
 
+// Default API keys (from environment variables)
+const DEFAULT_KEYS = {
+    groq: process.env.NEXT_PUBLIC_GROQ_API_KEY || "",
+    huggingface: process.env.NEXT_PUBLIC_HUGGINGFACE_API_KEY || "",
+};
+
 // Provider interface
 interface AIProvider {
     name: string;
@@ -71,10 +77,11 @@ function parseIdeasFromJSON(text: string): Idea[] {
 // Provider 1: Groq (FREE, 14,400 requests/day, super fast)
 const groqProvider: AIProvider = {
     name: "Groq",
-    requiresKey: true,
+    requiresKey: false, // Has default key
     keyName: "groq_api_key",
-    generate: async (niche: string, count: number, apiKey?: string) => {
-        const key = apiKey || (typeof localStorage !== 'undefined' ? localStorage.getItem("groq_api_key") : null);
+    generate: async (niche: string, count: number) => {
+        // Use default key or user's custom key
+        const key = (typeof localStorage !== 'undefined' ? localStorage.getItem("groq_api_key") : null) || DEFAULT_KEYS.groq;
         if (!key) throw new Error("No Groq API key");
 
         console.log("[AI] Trying Groq...");
@@ -215,10 +222,11 @@ const cohereProvider: AIProvider = {
 // Provider 6: HuggingFace Inference (free tier)
 const huggingFaceProvider: AIProvider = {
     name: "HuggingFace",
-    requiresKey: true,
+    requiresKey: false, // Has default key
     keyName: "huggingface_key",
     generate: async (niche: string, count: number) => {
-        const key = typeof localStorage !== 'undefined' ? localStorage.getItem("huggingface_key") : null;
+        // Use default key or user's custom key
+        const key = (typeof localStorage !== 'undefined' ? localStorage.getItem("huggingface_key") : null) || DEFAULT_KEYS.huggingface;
         if (!key) throw new Error("No HuggingFace API key");
 
         console.log("[AI] Trying HuggingFace...");

@@ -266,8 +266,6 @@ export default function Home() {
           <button onClick={() => setWeatherMode("water")} className={cn("p-2 rounded-full transition-all", weatherMode === "water" ? "bg-white shadow text-blue-700" : "hover:bg-white/30 text-slate-600")}><Waves className="w-5 h-5" /></button>
           <button onClick={() => setWeatherMode("beach")} className={cn("p-2 rounded-full transition-all", weatherMode === "beach" ? "bg-white shadow text-orange-500" : "hover:bg-white/30 text-slate-600")}><Sun className="w-5 h-5" /></button>
           <button onClick={handleCustomBackground} className={cn("p-2 rounded-full transition-all", weatherMode === "custom" ? "bg-white shadow text-purple-500" : "hover:bg-white/30 text-slate-600")}><ImageIcon className="w-5 h-5" /></button>
-          <div className="w-px h-6 bg-slate-300/50 mx-1" />
-          <button onClick={() => setIsApiKeyModalOpen(true)} className="p-2 rounded-full hover:bg-white/30 text-slate-600 transition-all" title="Settings"><Settings className="w-5 h-5" /></button>
         </div>
       </div>
 
