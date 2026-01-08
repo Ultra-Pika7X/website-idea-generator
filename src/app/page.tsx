@@ -179,7 +179,7 @@ export default function Home() {
       const contextString = contextIdeas.map(i => `- ${i.title}: ${i.description} (${i.tags.join(", ")})`).join("\n");
 
       // Use AI to generate new ideas based on the niche and context
-      const newIdeas = await generateIdeasWithFallback(selectedNiche || "General", 5, undefined, contextString);
+      const newIdeas = await generateIdeasWithFallback(selectedNiche || "General", 25, undefined, contextString);
 
       // Add new ideas to top of candidates
       setGeneratedCandidates(prev => [...newIdeas, ...prev]);

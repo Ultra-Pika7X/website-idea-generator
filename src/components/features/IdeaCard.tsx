@@ -28,13 +28,13 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({
             animate={{ opacity: 1, y: 0 }}
             className={cn(
                 "relative bg-white/40 backdrop-blur-md rounded-2xl border transition-all duration-300 cursor-pointer group hover:shadow-lg flex flex-col h-full",
-                compact ? "p-3" : "p-6",
+                compact ? "p-2.5" : "p-6",
                 selected ? "border-blue-500 shadow-blue-200/50 bg-blue-50/80 ring-2 ring-blue-500/20" : "border-white/30 shadow-lg hover:bg-white/50"
             )}
             onClick={() => onClick(idea)}
         >
-            <div className="flex justify-between items-start mb-2 gap-2">
-                <h3 className={cn("font-bold text-slate-800 leading-tight", compact ? "text-xs line-clamp-2" : "text-xl line-clamp-2")}>{idea.title}</h3>
+            <div className="flex justify-between items-start mb-1.5 gap-2">
+                <h3 className={cn("font-bold text-slate-800 leading-tight", compact ? "text-[11px] line-clamp-2" : "text-xl line-clamp-2")}>{idea.title}</h3>
                 <div className="flex gap-1 shrink-0">
                     <span className={cn(
                         "px-1.5 py-0.5 rounded-full text-[10px] font-medium",
@@ -53,14 +53,12 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({
                 </p>
             )}
 
-            {/* Tags - Hidden in super-compact dashboard grid on small screens if needed, but let's keep them small */}
-            {!selected && (
-                <div className="flex gap-1 mb-3 flex-wrap mt-auto">
-                    {idea.tags.slice(0, compact ? 2 : 5).map(tag => (
-                        <span key={tag} className={cn("text-slate-500 bg-white/40 px-1.5 py-0.5 rounded", compact ? "text-[9px]" : "text-xs")}>#{tag}</span>
-                    ))}
-                </div>
-            )}
+            {/* Tags - Always shown now */}
+            <div className="flex gap-1 mb-2 flex-wrap mt-auto">
+                {idea.tags.slice(0, compact ? 2 : 5).map(tag => (
+                    <span key={tag} className={cn("text-slate-500 bg-white/40 px-1.5 py-0.5 rounded", compact ? "text-[8px]" : "text-xs")}>#{tag}</span>
+                ))}
+            </div>
 
             {/* Actions */}
             {!selected && !hideActions && (

@@ -273,15 +273,59 @@ export async function generateIdeasAI(niche: string, count: number = 6, apiKey: 
   } catch (e) { throw e; }
 }
 
-export async function expandIdeaAI(idea: Idea, apiKey: string): Promise<ProductSpec> {
-  // Logic remains same, or could switch to Groq too. 
-  // For simplicity, keeping Gemini here but you could refactor similarly.
-  if (!apiKey) throw new Error("API Key missing");
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+export async function expandIdeaAI(idea: Idea, geminiApiKey?: string): Promise<ProductSpec> {
+  const rotatedKey = getRotatedKey('openrouter') || getRotatedKey('groq') || getRotatedKey('opencode') || getRotatedKey('gemini') || geminiApiKey;
+  if (!rotatedKey) throw new Error("API Key missing");
 
-  const prompt = `Expand this idea: ${idea.title}. Return JSON {appName, problem, targetUsers, features, monetization}`;
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().replace(/```json/g, "").replace(/```/g, "").trim();
-  return JSON.parse(text) as ProductSpec;
+  const provider = getProviderForKey(rotatedKey);
+  const prompt = `
+    Expand the following app idea into a product specification.
+    Title: ${idea.title}
+    Description: ${idea.description}
+
+    Return a STRICT JSON object:
+    {
+      "appName": "${idea.title}",
+      "problem": "Brief description of the problem solved",
+      "targetUsers": "Description of the target audience",
+      "features": ["Feature 1", "Feature 2", "Feature 3"],
+      "monetization": "Proposed revenue model"
+    }
+  `;
+
+  let content = "";
+  if (provider === 'gemini') {
+    const genAI = new GoogleGenerativeAI(rotatedKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const result = await model.generateContent(prompt);
+    content = result.response.text().replace(/```json/g, "").replace(/```/g, "").trim();
+  } else {
+    let url = OPENROUTER_API_URL;
+    let modelName = "deepseek/deepseek-chat";
+
+    if (provider === 'groq') {
+      url = "https://api.groq.com/openai/v1/chat/completions";
+      modelName = "llama-3.3-70b-versatile";
+    } else if (provider === 'opencode') {
+      url = OPENCODE_API_URL;
+      modelName = "grok-code-fast-1";
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${rotatedKey}`,
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" }
+      }),
+    });
+    const data = await response.json();
+    content = data.choices[0].message.content;
+  }
+
+  return JSON.parse(content) as ProductSpec;
 }
