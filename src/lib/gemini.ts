@@ -99,7 +99,7 @@ export async function generateIdeasAI(niche: string, count: number = 6, apiKey: 
     }));
   } catch (e) {
     console.error("AI Idea Gen Failed", e);
-    return [];
+    throw e; // Re-throw so caller can handle fallback
   }
 }
 
