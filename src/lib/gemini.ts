@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Idea, ProductSpec } from "./ideaEngine";
 
-const MODEL_NAME = "gemini-1.5-flash-latest";
+const MODEL_NAME = "gemini-2.0-flash";
 
 export interface GeneratedApp {
   html: string;
