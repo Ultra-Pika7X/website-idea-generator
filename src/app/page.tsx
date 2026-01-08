@@ -80,7 +80,12 @@ export default function Home() {
       } catch (e) {
         console.error(e);
         // Fallback if AI fails? or just alert
-        alert("AI Generation failed. Check key.");
+        console.error(e);
+        // Fallback to local generation so user isn't stuck
+        console.warn("AI Generation failed, falling back to local.");
+        const newBatch = generateIdeaBatch(25, niche as any);
+        setBatchIdeas(newBatch);
+        setView("SELECTION");
       } finally {
         setIsGenerating(false);
       }
