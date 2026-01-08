@@ -158,15 +158,28 @@ export default function Home() {
 
 
 
-  // --- Dashboard Handlers ---
+  /* --- Dashboard Handlers --- */
 
   const handleGenerateValues = async () => {
     setIsGenerating(true);
-    const idea = generateIdea(selectedNiche as any); // Use niche if available
+    try {
+      // Create context from saved ideas for style/taste match
+      const contextIdeas = ideas.filter(i => i.checked || i.liked).slice(0, 5);
+      const contextString = contextIdeas.map(i => `- ${i.title}: ${i.description} (${i.tags.join(", ")})`).join("\n");
 
-    // Add new idea to top of candidates
-    setGeneratedCandidates(prev => [idea, ...prev]);
-    setIsGenerating(false);
+      // Use AI to generate new ideas based on the niche and context
+      const newIdeas = await generateIdeasWithFallback(selectedNiche || "General", 5, undefined, contextString);
+
+      // Add new ideas to top of candidates
+      setGeneratedCandidates(prev => [...newIdeas, ...prev]);
+    } catch (e) {
+      console.error("AI Generation failed:", e);
+      // Fallback to local procedural generation if AI fails completely
+      const fallbackIdea = generateIdea(selectedNiche as any);
+      setGeneratedCandidates(prev => [fallbackIdea, ...prev]);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleSaveGenerated = async (idea: Idea) => {

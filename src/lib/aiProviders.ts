@@ -15,13 +15,13 @@ interface AIProvider {
     name: string;
     requiresKey: boolean;
     keyName?: string;
-    generate: (niche: string, count: number, apiKey?: string) => Promise<Idea[]>;
+    generate: (niche: string, count: number, apiKey?: string, context?: string) => Promise<Idea[]>;
 }
 
 // Shared prompt template
-// Shared prompt template
-const getPrompt = (niche: string, count: number) => `
+const getPrompt = (niche: string, count: number, context?: string) => `
 Generate exactly ${count} unique, creative, and commercially viable app or website ideas for the "${niche}" niche.
+${context ? `\nCONTEXT/INSPIRATION: The user has previously selected these ideas. Use them to understand the user's taste (e.g. complexity, style) but generate NEW, FRESH concepts (do not simply copy them):\n${context}\n` : ""}
 Ensure the ideas are diverse: some SaaS, some consumer apps, some tools.
 Avoid generic ideas. Focus on solving specific problems.
 
@@ -82,7 +82,7 @@ const groqProvider: AIProvider = {
     name: "Groq",
     requiresKey: false, // Has default key
     keyName: "groq_api_key",
-    generate: async (niche: string, count: number) => {
+    generate: async (niche: string, count: number, apiKey?: string, context?: string) => {
         // Use default key or user's custom key
         const key = (typeof localStorage !== 'undefined' ? localStorage.getItem("groq_api_key") : null) || DEFAULT_KEYS.groq;
         if (!key) throw new Error("No Groq API key");
@@ -96,7 +96,7 @@ const groqProvider: AIProvider = {
             },
             body: JSON.stringify({
                 model: "llama-3.3-70b-versatile",
-                messages: [{ role: "user", content: getPrompt(niche, count) }],
+                messages: [{ role: "user", content: getPrompt(niche, count, context) }],
                 temperature: 0.7,
             }),
         });
@@ -116,7 +116,7 @@ const groqProvider: AIProvider = {
 const pollinationsProvider: AIProvider = {
     name: "Pollinations",
     requiresKey: false,
-    generate: async (niche: string, count: number) => {
+    generate: async (niche: string, count: number, apiKey?: string, context?: string) => {
         console.log("[AI] Trying Pollinations...");
 
         // Use POST endpoint for better control
@@ -124,7 +124,7 @@ const pollinationsProvider: AIProvider = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                messages: [{ role: "user", content: getPrompt(niche, count) }],
+                messages: [{ role: "user", content: getPrompt(niche, count, context) }],
                 model: "openai",
                 jsonMode: true,
             }),
@@ -144,7 +144,7 @@ const geminiProvider: AIProvider = {
     name: "Gemini",
     requiresKey: true,
     keyName: "gemini_api_key",
-    generate: async (niche: string, count: number, apiKey?: string) => {
+    generate: async (niche: string, count: number, apiKey?: string, context?: string) => {
         if (!apiKey) throw new Error("No Gemini API key");
 
         console.log("[AI] Trying Gemini...");
@@ -152,7 +152,7 @@ const geminiProvider: AIProvider = {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-        const result = await model.generateContent(getPrompt(niche, count));
+        const result = await model.generateContent(getPrompt(niche, count, context));
         const text = result.response.text();
         return parseIdeasFromJSON(text);
     }
@@ -163,7 +163,7 @@ const openRouterProvider: AIProvider = {
     name: "OpenRouter",
     requiresKey: true,
     keyName: "openrouter_key",
-    generate: async (niche: string, count: number) => {
+    generate: async (niche: string, count: number, apiKey?: string, context?: string) => {
         const key = typeof localStorage !== 'undefined' ? localStorage.getItem("openrouter_key") : null;
         if (!key) throw new Error("No OpenRouter API key");
 
@@ -176,7 +176,7 @@ const openRouterProvider: AIProvider = {
             },
             body: JSON.stringify({
                 model: "deepseek/deepseek-chat:free",
-                messages: [{ role: "user", content: getPrompt(niche, count) }],
+                messages: [{ role: "user", content: getPrompt(niche, count, context) }],
             }),
         });
 
@@ -195,7 +195,7 @@ const cohereProvider: AIProvider = {
     name: "Cohere",
     requiresKey: true,
     keyName: "cohere_api_key",
-    generate: async (niche: string, count: number) => {
+    generate: async (niche: string, count: number, apiKey?: string, context?: string) => {
         const key = typeof localStorage !== 'undefined' ? localStorage.getItem("cohere_api_key") : null;
         if (!key) throw new Error("No Cohere API key");
 
@@ -208,7 +208,7 @@ const cohereProvider: AIProvider = {
             },
             body: JSON.stringify({
                 model: "command-r-plus",
-                message: getPrompt(niche, count),
+                message: getPrompt(niche, count, context),
             }),
         });
 
@@ -227,7 +227,7 @@ const huggingFaceProvider: AIProvider = {
     name: "HuggingFace",
     requiresKey: false, // Has default key
     keyName: "huggingface_key",
-    generate: async (niche: string, count: number) => {
+    generate: async (niche: string, count: number, apiKey?: string, context?: string) => {
         // Use default key or user's custom key
         const key = (typeof localStorage !== 'undefined' ? localStorage.getItem("huggingface_key") : null) || DEFAULT_KEYS.huggingface;
         if (!key) throw new Error("No HuggingFace API key");
@@ -240,7 +240,7 @@ const huggingFaceProvider: AIProvider = {
                 "Authorization": `Bearer ${key}`,
             },
             body: JSON.stringify({
-                inputs: getPrompt(niche, count),
+                inputs: getPrompt(niche, count, context),
                 parameters: { max_new_tokens: 2000 },
             }),
         });
@@ -260,7 +260,7 @@ const togetherProvider: AIProvider = {
     name: "Together",
     requiresKey: true,
     keyName: "together_api_key",
-    generate: async (niche: string, count: number) => {
+    generate: async (niche: string, count: number, apiKey?: string, context?: string) => {
         const key = typeof localStorage !== 'undefined' ? localStorage.getItem("together_api_key") : null;
         if (!key) throw new Error("No Together API key");
 
@@ -273,7 +273,7 @@ const togetherProvider: AIProvider = {
             },
             body: JSON.stringify({
                 model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-                messages: [{ role: "user", content: getPrompt(niche, count) }],
+                messages: [{ role: "user", content: getPrompt(niche, count, context) }],
             }),
         });
 
@@ -292,7 +292,7 @@ const cerebrasProvider: AIProvider = {
     name: "Cerebras",
     requiresKey: true,
     keyName: "cerebras_api_key",
-    generate: async (niche: string, count: number) => {
+    generate: async (niche: string, count: number, apiKey?: string, context?: string) => {
         const key = typeof localStorage !== 'undefined' ? localStorage.getItem("cerebras_api_key") : null;
         if (!key) throw new Error("No Cerebras API key");
 
@@ -305,7 +305,7 @@ const cerebrasProvider: AIProvider = {
             },
             body: JSON.stringify({
                 model: "llama3.1-8b",
-                messages: [{ role: "user", content: getPrompt(niche, count) }],
+                messages: [{ role: "user", content: getPrompt(niche, count, context) }],
             }),
         });
 
@@ -336,7 +336,8 @@ const providers: AIProvider[] = [
 export async function generateIdeasWithFallback(
     niche: string,
     count: number = 20,
-    geminiApiKey?: string
+    geminiApiKey?: string,
+    context?: string
 ): Promise<Idea[]> {
     const errors: string[] = [];
 
@@ -360,7 +361,7 @@ export async function generateIdeasWithFallback(
             }
 
             console.log(`[AI] Requesting ${provider.name}...`);
-            const ideas = await provider.generate(niche, count, geminiApiKey);
+            const ideas = await provider.generate(niche, count, geminiApiKey, context);
             if (!ideas || ideas.length === 0) throw new Error("Empty result");
             console.log(`[AI] ✅ WINNER: ${provider.name}`);
             return ideas;
