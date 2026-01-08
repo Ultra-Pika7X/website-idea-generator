@@ -81,7 +81,7 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ idea, onLike, onCheck, onDel
 
                 {!compact && (
                     <button onClick={() => onClick(idea)} className="text-blue-600 text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all">
-                        Steps <ArrowRight className="w-4 h-4" />
+                        View Details <ArrowRight className="w-4 h-4" />
                     </button>
                 )}
             </div>

@@ -305,7 +305,7 @@ export default function Home() {
 
       {/* Main Content Area */}
       <div className={cn(
-        "flex-1 flex flex-col items-center p-4 transition-all duration-300 overflow-y-auto no-scrollbar relative",
+        "flex-1 flex flex-col items-center p-4 transition-all duration-300 overflow-y-auto no-scrollbar relative z-10",
         view === "DASHBOARD" && isSidebarOpen ? "lg:ml-80" : ""
       )}>
 

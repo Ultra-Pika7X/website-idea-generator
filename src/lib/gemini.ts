@@ -11,6 +11,7 @@ export interface GeneratedApp {
 }
 
 export async function generateAppCode(idea: Idea, apiKey: string): Promise<GeneratedApp> {
+  console.log("generateAppCode called with key length:", apiKey ? apiKey.length : 0);
   if (!apiKey) throw new Error("API Key is missing");
 
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -56,6 +57,7 @@ export async function generateAppCode(idea: Idea, apiKey: string): Promise<Gener
 }
 
 export async function generateIdeasAI(niche: string, count: number = 6, apiKey: string): Promise<Idea[]> {
+  console.log("generateIdeasAI called with key length:", apiKey ? apiKey.length : 0);
   if (!apiKey) throw new Error("API Key is missing for AI Generation");
 
   const genAI = new GoogleGenerativeAI(apiKey);
