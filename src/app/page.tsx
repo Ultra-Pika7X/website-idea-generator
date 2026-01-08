@@ -15,7 +15,8 @@ import { auth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import { ApiKeyModal } from "@/components/settings/ApiKeyModal";
 import { AppPreviewModal } from "@/components/features/AppPreviewModal";
-import { generateAppCode, GeneratedApp, generateIdeasAI, expandIdeaAI } from "@/lib/gemini"; // Import new functions
+import { generateAppCode, GeneratedApp, expandIdeaAI } from "@/lib/gemini";
+import { generateIdeasWithFallback } from "@/lib/aiProviders";
 import { Settings } from "lucide-react";
 
 type ViewState = "START" | "SELECTION" | "DASHBOARD";
@@ -69,35 +70,21 @@ export default function Home() {
     setSelectedNiche(niche);
     setIsGenerating(true);
 
-    const apiKey = localStorage.getItem("gemini_api_key");
+    const apiKey = localStorage.getItem("gemini_api_key") || undefined;
 
-    if (apiKey) {
-      // Use AI Generation
-      try {
-        const newBatch = await generateIdeasAI(niche, 20, apiKey); // Generate 20 AI ideas
-        setBatchIdeas(newBatch);
-        setView("SELECTION");
-      } catch (e) {
-        console.error(e);
-        // Fallback if AI fails? or just alert
-        console.error(e);
-        // Fallback to local generation so user isn't stuck
-        console.warn("AI Generation failed, falling back to local.");
-        const newBatch = generateIdeaBatch(25, niche as any);
-        setBatchIdeas(newBatch);
-        setView("SELECTION");
-      } finally {
-        setIsGenerating(false);
-      }
-    } else {
-      // Fallback to Static for demo/no-key
-      setTimeout(() => {
-        // Note: generateIdeaBatch still works for static fallback
-        const newBatch = generateIdeaBatch(25, niche as any);
-        setBatchIdeas(newBatch);
-        setView("SELECTION");
-        setIsGenerating(false);
-      }, 800);
+    try {
+      // Try multi-provider AI generation (Pollinations -> Gemini -> OpenRouter)
+      const newBatch = await generateIdeasWithFallback(niche, 20, apiKey);
+      setBatchIdeas(newBatch);
+      setView("SELECTION");
+    } catch (e) {
+      console.error("All AI providers failed, using local generation:", e);
+      // Final fallback to local procedural generation
+      const newBatch = generateIdeaBatch(25, niche as any);
+      setBatchIdeas(newBatch);
+      setView("SELECTION");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -113,22 +100,20 @@ export default function Home() {
 
   const handleLoadMore = async () => {
     setIsGenerating(true);
-    const apiKey = localStorage.getItem("gemini_api_key");
+    const apiKey = localStorage.getItem("gemini_api_key") || undefined;
 
-    if (apiKey && selectedNiche) {
-      // AI Load More
-      const newBatch = await generateIdeasAI(selectedNiche, 8, apiKey);
+    try {
+      if (selectedNiche) {
+        const newBatch = await generateIdeasWithFallback(selectedNiche, 8, apiKey);
+        setBatchIdeas(prev => [...prev, ...newBatch]);
+      }
+    } catch (e) {
+      // Fallback to local
+      const newBatch = generateIdeaBatch(10, selectedNiche as any);
       setBatchIdeas(prev => [...prev, ...newBatch]);
+    } finally {
       setIsGenerating(false);
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    } else {
-      // Static Load More
-      setTimeout(() => {
-        const newBatch = generateIdeaBatch(10, selectedNiche as any);
-        setBatchIdeas(prev => [...prev, ...newBatch]);
-        setIsGenerating(false);
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-      }, 500);
     }
   };
 
