@@ -75,7 +75,7 @@ export default function Home() {
 
     try {
       // Try multi-provider AI generation (Pollinations -> Gemini -> OpenRouter)
-      const newBatch = await generateIdeasWithFallback(niche, 20, apiKey);
+      const newBatch = await generateIdeasWithFallback(niche, 25, apiKey);
       setBatchIdeas(newBatch);
       setView("SELECTION");
     } catch (e) {
@@ -234,21 +234,21 @@ export default function Home() {
       return;
     }
 
-    // 2. Open Modal & Start Generation
-    setIsAppPreviewOpen(true);
-    setIsGeneratingApp(true);
-    setGeneratedApp(null);
+    // 1. Save to History explicitly when prototype is requested
+    await db.saveIdea(idea);
 
-    // Close the steps modal to focus on the app
+    // 2. Generate
     setSelectedIdea(null);
+    setIsAppPreviewOpen(true);
+    setIsGeneratingApp(true); // Show loading state in modal
 
     try {
-      const app = await generateAppCode(idea, apiKey);
-      setGeneratedApp(app);
-    } catch (error) {
-      console.error("Generation failed:", error);
-      alert("Something went wrong while generating the app. Please check your API Key and try again.");
-      setIsAppPreviewOpen(false);
+      const appCode = await generateAppCode(idea, localStorage.getItem("gemini_api_key") || undefined);
+      setGeneratedApp(appCode);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to generate prototype. Please check your API key.");
+      setIsAppPreviewOpen(false); // Close if failed
     } finally {
       setIsGeneratingApp(false);
     }
@@ -371,7 +371,7 @@ export default function Home() {
                       onLike={() => { }}
                       onCheck={() => { }}
                       onDelete={() => { }}
-                      onClick={() => handleBatchCardClick(idea)}
+                      onClick={() => setSelectedIdea(idea)}
                       compact={true}
                       selected={selectedBatchIds.has(idea.id)}
                     />

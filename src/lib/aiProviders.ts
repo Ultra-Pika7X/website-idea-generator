@@ -19,19 +19,22 @@ interface AIProvider {
 }
 
 // Shared prompt template
+// Shared prompt template
 const getPrompt = (niche: string, count: number) => `
-Generate ${count} unique, high-quality app or website ideas for the "${niche}" niche.
+Generate exactly ${count} unique, creative, and commercially viable app or website ideas for the "${niche}" niche.
+Ensure the ideas are diverse: some SaaS, some consumer apps, some tools.
+Avoid generic ideas. Focus on solving specific problems.
 
 Response Format:
-Return a JSON array of objects with this structure (no markdown):
+Return a STRICT JSON array (no markdown block, just the raw array) of objects:
 [
   {
-    "title": "Short creative name",
-    "description": "2 sentence pitch",
-    "type": "App" | "Website" | "Game",
-    "tags": ["Tag1", "Tag2"],
+    "title": "Short catchy name",
+    "description": "Compelling 2-sentence pitch covering problem and solution",
+    "type": "App" | "Website" | "Game" | "SaaS" | "Tool",
+    "tags": ["Tag1", "Tag2", "Tag3"],
     "difficulty": "Easy" | "Medium" | "Hard",
-    "techStack": ["React", "Firebase"]
+    "techStack": ["React", "Firebase", "Tailwind"]
   }
 ]
 `;
