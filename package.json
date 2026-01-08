@@ -1,5 +1,5 @@
 {
-  "name": "website-idea-generator",
+  "name": "website-idea-maker",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@types/uuid": "^10.0.0",
     "clsx": "^2.1.1",
     "firebase": "^12.7.0",

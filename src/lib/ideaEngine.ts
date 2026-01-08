@@ -7,6 +7,14 @@ export interface Step {
     completed: boolean;
 }
 
+export interface ProductSpec {
+    appName: string;
+    problem: string;
+    targetUsers: string;
+    features: string[];
+    monetization: string;
+}
+
 export interface Idea {
     id: string;
     title: string;
@@ -15,7 +23,8 @@ export interface Idea {
     tags: string[];
     difficulty: "Easy" | "Medium" | "Hard" | "Expert";
     techStack: string[];
-    steps: Step[];
+    // steps: Step[]; // REMOVED per user request
+    productSpec?: ProductSpec;
     createdAt: number;
     liked: boolean; // For filtering
     checked: boolean; // "Use this"
@@ -164,12 +173,6 @@ function createIdeaObject(title: string, description: string, tags: string[], ni
         tags,
         difficulty: Math.random() > 0.7 ? "Hard" : "Medium",
         techStack,
-        steps: baseSteps.map(s => ({
-            id: uuidv4(),
-            title: s.title,
-            description: s.description,
-            completed: false
-        })),
         createdAt: Date.now(),
         liked: false,
         checked: false

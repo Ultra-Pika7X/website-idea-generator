@@ -29,7 +29,7 @@ export const IdeaGenerator: React.FC<IdeaGeneratorProps> = ({ onGenerate, isGene
             </motion.button>
 
             <p className="mt-4 text-slate-600/80 text-sm font-medium">
-                Click to conjure a unique project concept with steps
+                Click to conjure a unique project concept with AI
             </p>
         </motion.div>
     );
