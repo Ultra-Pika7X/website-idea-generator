@@ -54,6 +54,41 @@ ${app.js || '// No JS'}
         saveAs(content, "prototype_code.zip");
     };
 
+    const handleDownloadHtml = () => {
+        if (!app) return;
+
+        let content = fullHtml;
+        let filename = "index.html";
+        let type = "text/html";
+
+        // Download specific file based on active tab
+        if (activeTab === "css") {
+            content = app.css || "";
+            filename = "style.css";
+            type = "text/css";
+        } else if (activeTab === "js") {
+            content = app.js || "";
+            filename = "script.js";
+            type = "text/javascript";
+        } else if (activeTab === "html") {
+            content = app.html || "";
+            // Keep index.html for partial HTML or maybe 'fragment.html' 
+            // but user probably wants the structure. Let's just download the fragment.
+            filename = "index.html";
+            type = "text/html";
+        }
+
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
     const handleCopy = () => {
         let content = "";
         if (activeTab === "preview" || activeTab === "html") content = app?.html || "";
@@ -148,11 +183,19 @@ ${app.js || '// No JS'}
                                         >
                                             <Copy className="w-5 h-5" />
                                         </button>
+                                        <div className="h-8 w-px bg-slate-700 mx-1" />
+                                        <button
+                                            onClick={handleDownloadHtml}
+                                            className="hidden sm:flex px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors items-center gap-2"
+                                            title="Download current file"
+                                        >
+                                            <Download className="w-4 h-4" /> File
+                                        </button>
                                         <button
                                             onClick={handleDownloadZip}
                                             className="hidden sm:flex px-4 py-2 bg-slate-100 hover:bg-white text-slate-900 rounded-lg text-sm font-bold transition-all items-center gap-2 shadow-sm hover:shadow-md"
                                         >
-                                            <Download className="w-4 h-4" /> Download ZIP
+                                            <Download className="w-4 h-4" /> ZIP
                                         </button>
                                     </>
                                 )}
