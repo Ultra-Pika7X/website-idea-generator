@@ -63,14 +63,31 @@ const syncLocalToCloud = async (user: User) => {
 
 // --- CRUD Operations ---
 
+// Helper for timeout
+const withTimeout = (promise: Promise<any>, ms: number) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
+    ]);
+};
+
 export async function saveIdea(idea: Idea) {
-    // Always save local (fast UI)
+    // 1. Always save local (fast & critical)
     const dbLocal = await initDB();
     await dbLocal.put(STORE_NAME, idea);
 
-    // If logged in, save to cloud
+    // 2. If logged in, try to save to cloud (but don't block forever)
     if (auth && auth.currentUser) {
-        await setDoc(doc(db, `users/${auth.currentUser.uid}/ideas`, idea.id), idea);
+        try {
+            // Race Firestore against a 2.5s timeout so UI doesn't freeze
+            await withTimeout(
+                setDoc(doc(db, `users/${auth.currentUser.uid}/ideas`, idea.id), idea),
+                2500
+            );
+        } catch (e) {
+            console.warn("Cloud save failed or timed out (local save ok):", e);
+            // We suppress the error so the user can continue flow
+        }
     }
 }
 
