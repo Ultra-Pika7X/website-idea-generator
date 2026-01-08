@@ -438,6 +438,8 @@ export default function Home() {
                       onDelete={() => { }}
                       compact={true}
                       selected={selectedBatchIds.has(idea.id)}
+                      hideActions={true}
+                      hideDescription={true}
                     />
                   </motion.div>
                 ))}

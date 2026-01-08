@@ -12,9 +12,15 @@ interface IdeaCardProps {
     onClick: (idea: Idea) => void;
     compact?: boolean;
     selected?: boolean; // New prop for selection phase
+    hideActions?: boolean;
+    hideDescription?: boolean;
 }
 
-export const IdeaCard: React.FC<IdeaCardProps> = ({ idea, onLike, onCheck, onDelete, onClick, compact = false, selected = false }) => {
+export const IdeaCard: React.FC<IdeaCardProps> = ({
+    idea, onLike, onCheck, onDelete, onClick,
+    compact = false, selected = false,
+    hideActions = false, hideDescription = false
+}) => {
     return (
         <motion.div
             layoutId={idea.id}
@@ -41,9 +47,11 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ idea, onLike, onCheck, onDel
                 </div>
             </div>
 
-            <p className={cn("text-slate-600 mb-3 leading-relaxed", compact ? "text-[10px] line-clamp-3" : "text-sm mb-4")}>
-                {idea.description}
-            </p>
+            {!hideDescription && (
+                <p className={cn("text-slate-600 mb-3 leading-relaxed", compact ? "text-[10px] line-clamp-3" : "text-sm mb-4")}>
+                    {idea.description}
+                </p>
+            )}
 
             {/* Tags - Hidden in super-compact dashboard grid on small screens if needed, but let's keep them small */}
             {!selected && (
@@ -55,7 +63,7 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ idea, onLike, onCheck, onDel
             )}
 
             {/* Actions */}
-            {!selected && (
+            {!selected && !hideActions && (
                 <div className="flex justify-between items-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex gap-1">
                         <button
