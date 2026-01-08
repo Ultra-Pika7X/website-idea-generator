@@ -21,6 +21,7 @@ export const IdeaGenerator: React.FC<IdeaGeneratorProps> = ({ onGenerate, isGene
                 disabled={isGenerating}
                 className="group relative px-8 py-4 bg-white/50 backdrop-blur-xl rounded-full shadow-xl border border-white/40 text-blue-600 font-bold text-lg overflow-hidden transition-all hover:bg-white/70"
             >
+                <span className="relative z-10 flex items-center gap-2">
                     <Sparkles className={isGenerating ? "animate-spin" : "group-hover:animate-pulse"} />
                     {isGenerating ? "Brewing Magic..." : "Generate Ideas (Batch)"}
                 </span>
