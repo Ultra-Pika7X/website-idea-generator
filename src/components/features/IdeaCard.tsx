@@ -57,34 +57,34 @@ export const IdeaCard: React.FC<IdeaCardProps> = ({ idea, onLike, onCheck, onDel
             )}
 
             {/* Actions */}
-            <div className="flex justify-between items-center mt-auto" onClick={(e) => e.stopPropagation()}>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => onLike(idea.id)}
-                        className={cn("p-2 rounded-full hover:bg-white/40 transition-colors", idea.liked ? "text-pink-500" : "text-slate-400")}
-                    >
-                        <Heart className={cn("w-5 h-5", idea.liked && "fill-current")} />
-                    </button>
-                    <button
-                        onClick={() => onCheck(idea.id)}
-                        className={cn("p-2 rounded-full hover:bg-white/40 transition-colors", idea.checked ? "text-green-600" : "text-slate-400")}
-                    >
-                        <CheckCircle className="w-5 h-5" />
-                    </button>
-                    <button
-                        onClick={() => onDelete(idea.id)}
-                        className="p-2 rounded-full hover:bg-white/40 transition-colors text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100"
-                    >
-                        <Trash2 className="w-5 h-5" />
-                    </button>
-                </div>
+            {!selected && !compact && (
+                <div className="flex justify-between items-center mt-auto" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => onLike(idea.id)}
+                            className={cn("p-2 rounded-full hover:bg-white/40 transition-colors", idea.liked ? "text-pink-500" : "text-slate-400")}
+                        >
+                            <Heart className={cn("w-5 h-5", idea.liked && "fill-current")} />
+                        </button>
+                        <button
+                            onClick={() => onCheck(idea.id)}
+                            className={cn("p-2 rounded-full hover:bg-white/40 transition-colors", idea.checked ? "text-green-600" : "text-slate-400")}
+                        >
+                            <CheckCircle className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={() => onDelete(idea.id)}
+                            className="p-2 rounded-full hover:bg-white/40 transition-colors text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100"
+                        >
+                            <Trash2 className="w-5 h-5" />
+                        </button>
+                    </div>
 
-                {!compact && (
                     <button onClick={() => onClick(idea)} className="text-blue-600 text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all">
                         View Details <ArrowRight className="w-4 h-4" />
                     </button>
-                )}
-            </div>
+                </div>
+            )}
         </motion.div>
     );
 };
