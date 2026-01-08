@@ -19,7 +19,7 @@ import { generateAppCode, GeneratedApp, expandIdeaAI } from "@/lib/gemini";
 import { generateIdeasWithFallback } from "@/lib/aiProviders";
 import { Settings } from "lucide-react";
 
-type ViewState = "START" | "SELECTION" | "DASHBOARD";
+type ViewState = "START" | "SELECTION" | "DASHBOARD" | "HISTORY";
 
 export default function Home() {
   const [view, setView] = useState<ViewState>("START");
@@ -306,6 +306,10 @@ export default function Home() {
           onLike={handleLike}
           onCheck={handleCheck}
           onDelete={handleDelete}
+          onViewHistory={() => {
+            setView("HISTORY");
+            if (window.innerWidth < 1024) setIsSidebarOpen(false);
+          }}
         />
       )}
 
@@ -450,6 +454,46 @@ export default function Home() {
                     </motion.div>
                   ))}
                 </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* VIEW: HISTORY */}
+        <AnimatePresence mode="wait">
+          {view === "HISTORY" && (
+            <motion.div
+              key="history"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="w-full max-w-7xl flex flex-col items-start gap-8 pb-32"
+            >
+              <button
+                onClick={() => setView("DASHBOARD")}
+                className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition-colors bg-white/50 px-4 py-2 rounded-lg"
+              >
+                <ArrowRight className="w-5 h-5 rotate-180" /> Back to Dashboard
+              </button>
+
+              <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {ideas.filter(i => i.checked).length === 0 ? (
+                  <div className="col-span-full text-center py-20">
+                    <p className="text-xl text-slate-500">No saved ideas yet.</p>
+                    <p className="text-slate-400">Click the checkmark icon on ideas to save them here.</p>
+                  </div>
+                ) : (
+                  ideas.filter(i => i.checked).map((idea) => (
+                    <IdeaCard
+                      key={idea.id}
+                      idea={idea}
+                      onLike={handleLike}
+                      onCheck={handleCheck}
+                      onDelete={handleDelete}
+                      onClick={() => setSelectedIdea(idea)}
+                    />
+                  ))
+                )}
               </div>
             </motion.div>
           )}

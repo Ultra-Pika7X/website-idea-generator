@@ -13,10 +13,11 @@ interface HistorySidebarProps {
     onLike: (id: string) => void;
     onCheck: (id: string) => void;
     onDelete: (id: string) => void;
+    onViewHistory: () => void;
 }
 
 export const HistorySidebar: React.FC<HistorySidebarProps> = ({
-    ideas, isOpen, onClose, onSelectIdea, onLike, onCheck, onDelete
+    ideas, isOpen, onClose, onSelectIdea, onLike, onCheck, onDelete, onViewHistory
 }) => {
     const [filter, setFilter] = React.useState<'all' | 'liked' | 'todo'>('all');
 
@@ -46,7 +47,7 @@ export const HistorySidebar: React.FC<HistorySidebarProps> = ({
                 )}
             >
                 <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 pl-1">
+                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 pl-1 cursor-pointer hover:text-blue-600 transition-colors" onClick={onViewHistory}>
                         <Clock className="w-5 h-5 text-blue-600" /> History
                     </h2>
                     <div className="flex gap-2">

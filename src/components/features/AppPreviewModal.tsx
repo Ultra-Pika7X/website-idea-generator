@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Code, Play, Download, Copy, Loader2, Sparkles, FileCode, FileJson, FileType } from "lucide-react";
+import { X, Code, Play, Download, Copy, Loader2, Sparkles, FileCode, FileJson, FileType, Check } from "lucide-react";
 import { GeneratedApp } from "@/lib/gemini";
 import { cn } from "@/lib/utils";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 interface AppPreviewModalProps {
     isOpen: boolean;
@@ -16,7 +18,7 @@ type Tab = "preview" | "html" | "css" | "js";
 export function AppPreviewModal({ isOpen, onClose, app, isLoading }: AppPreviewModalProps) {
     const [activeTab, setActiveTab] = useState<Tab>("preview");
 
-    // Construct the full HTML document for preview and download
+    // Construct the full HTML document for preview
     const fullHtml = app ? `
 <!DOCTYPE html>
 <html lang="en">
@@ -38,17 +40,18 @@ ${app.js || '// No JS'}
 </body>
 </html>` : "";
 
-    const handleDownload = () => {
-        if (!fullHtml) return;
-        const blob = new Blob([fullHtml], { type: "text/html" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "index.html";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+    const handleDownloadZip = async () => {
+        if (!app) return;
+        const zip = new JSZip();
+        zip.file("index.html", app.html || "<!-- No HTML -->");
+        zip.file("style.css", app.css || "/* No CSS */");
+        zip.file("script.js", app.js || "// No JS");
+
+        // Also add a "readme" or "combined" file for convenience
+        zip.file("demo_full.html", fullHtml);
+
+        const content = await zip.generateAsync({ type: "blob" });
+        saveAs(content, "prototype_code.zip");
     };
 
     const handleCopy = () => {
@@ -146,10 +149,10 @@ ${app.js || '// No JS'}
                                             <Copy className="w-5 h-5" />
                                         </button>
                                         <button
-                                            onClick={handleDownload}
+                                            onClick={handleDownloadZip}
                                             className="hidden sm:flex px-4 py-2 bg-slate-100 hover:bg-white text-slate-900 rounded-lg text-sm font-bold transition-all items-center gap-2 shadow-sm hover:shadow-md"
                                         >
-                                            <Download className="w-4 h-4" /> Export
+                                            <Download className="w-4 h-4" /> Download ZIP
                                         </button>
                                     </>
                                 )}
@@ -184,20 +187,20 @@ ${app.js || '// No JS'}
                                         />
                                     )}
 
-                                    {/* Code Editors (Read-only) */}
+                                    {/* Code Editors (Read-only) with proper whitespace handling */}
                                     {activeTab === "html" && (
                                         <div className="w-full h-full overflow-auto p-6 font-mono text-sm leading-relaxed text-orange-100">
-                                            <pre>{app.html}</pre>
+                                            <pre className="whitespace-pre-wrap">{app.html}</pre>
                                         </div>
                                     )}
                                     {activeTab === "css" && (
                                         <div className="w-full h-full overflow-auto p-6 font-mono text-sm leading-relaxed text-blue-100">
-                                            <pre>{app.css || "/* No custom CSS (using Tailwind) */"}</pre>
+                                            <pre className="whitespace-pre-wrap">{app.css || "/* No custom CSS (using Tailwind) */"}</pre>
                                         </div>
                                     )}
                                     {activeTab === "js" && (
                                         <div className="w-full h-full overflow-auto p-6 font-mono text-sm leading-relaxed text-yellow-100">
-                                            <pre>{app.js || "// No JavaScript logic"}</pre>
+                                            <pre className="whitespace-pre-wrap">{app.js || "// No JavaScript logic"}</pre>
                                         </div>
                                     )}
                                 </div>
