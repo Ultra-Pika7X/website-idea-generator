@@ -329,6 +329,7 @@ const providers: AIProvider[] = [
 ];
 
 // Main function: try providers in order until one succeeds
+// Main function: Race fast providers, then fallback to others
 export async function generateIdeasWithFallback(
     niche: string,
     count: number = 20,
@@ -336,35 +337,69 @@ export async function generateIdeasWithFallback(
 ): Promise<Idea[]> {
     const errors: string[] = [];
 
-    for (const provider of providers) {
+    // Group 1: Fast & Free/Cheap (Race these)
+    const fastProviders = [groqProvider, pollinationsProvider, cerebrasProvider];
+
+    // Helper to try a provider and throw if it fails or returns empty
+    const tryProvider = async (provider: AIProvider): Promise<Idea[]> => {
         try {
-            // Skip providers that require keys if none available
             if (provider.requiresKey) {
                 const hasKey = provider.keyName === "gemini_api_key"
                     ? !!geminiApiKey
                     : typeof localStorage !== 'undefined' && !!localStorage.getItem(provider.keyName!);
 
-                if (!hasKey) {
-                    console.log(`[AI] Skipping ${provider.name} (no key)`);
-                    continue;
+                // Special case for default keys
+                const hasDefaultKey = provider.name === "Groq" || provider.name === "HuggingFace";
+
+                if (!hasKey && !hasDefaultKey) {
+                    throw new Error("No API key");
                 }
             }
 
+            console.log(`[AI] Requesting ${provider.name}...`);
             const ideas = await provider.generate(niche, count, geminiApiKey);
+            if (!ideas || ideas.length === 0) throw new Error("Empty result");
+            console.log(`[AI] ✅ WINNER: ${provider.name}`);
+            return ideas;
+        } catch (e: any) {
+            console.warn(`[AI] ${provider.name} failed/skipped: ${e.message}`);
+            errors.push(`${provider.name}: ${e.message}`);
+            throw e;
+        }
+    };
 
-            if (ideas && ideas.length > 0) {
-                console.log(`[AI] ✅ Success with ${provider.name}! Generated ${ideas.length} ideas`);
-                return ideas;
-            }
-        } catch (error: any) {
-            console.error(`[AI] ❌ ${provider.name} failed:`, error.message);
-            errors.push(`${provider.name}: ${error.message}`);
+    // 1. Race the fast providers (Groq, Pollinations, Cerebras)
+    try {
+        const raceWin = await Promise.any([
+            tryProvider(groqProvider),
+            tryProvider(pollinationsProvider),
+            tryProvider(cerebrasProvider)
+        ]);
+        return raceWin;
+    } catch (aggregateError) {
+        console.log("[AI] Fast tier failed, enforcing sequential backup...");
+    }
+
+    // 2. Backup: Try standard providers sequentially (Gemini, OpenRouter, etc)
+    const backupProviders = [
+        geminiProvider,
+        openRouterProvider,
+        togetherProvider,
+        huggingFaceProvider,
+        cohereProvider
+    ];
+
+    for (const provider of backupProviders) {
+        try {
+            return await tryProvider(provider);
+        } catch {
+            continue; // Already logged in tryProvider
         }
     }
 
     // All providers failed
     console.error("[AI] All providers failed:", errors);
-    throw new Error(`All AI providers failed: ${errors.join("; ")}`);
+    throw new Error(`All AI providers failed. Errors: ${errors.join("; ")}`);
 }
 
 // Export provider list for settings UI

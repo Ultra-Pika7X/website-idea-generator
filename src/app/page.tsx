@@ -46,6 +46,7 @@ export default function Home() {
   const [generatedApp, setGeneratedApp] = useState<GeneratedApp | null>(null);
   const [isGeneratingApp, setIsGeneratingApp] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // Add loading state for continue button
 
   // Load ideas on mount
   useEffect(() => {
@@ -119,23 +120,40 @@ export default function Home() {
 
   const handleContinueSelection = async () => {
     if (selectedBatchIds.size < 5) return;
-    await finalizeSelection();
+
+    setIsSaving(true);
+    try {
+      await finalizeSelection();
+    } catch (e) {
+      console.error("Failed to save selection:", e);
+      alert("Something went wrong saving your ideas. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const finalizeSelection = async () => {
     const selected = batchIdeas.filter(i => selectedBatchIds.has(i.id));
 
     // Save all
-    for (const idea of selected) {
-      await db.saveIdea(idea);
-    }
+    try {
+      for (const idea of selected) {
+        await db.saveIdea(idea);
+      }
 
-    const allIdeas = await db.getAllIdeas();
-    setIdeas(allIdeas);
-    setView("DASHBOARD");
-    setIsSidebarOpen(true);
-    setSelectedBatchIds(new Set());
-    setBatchIdeas([]);
+      // Verification: ensure we can read them back
+      const allIdeas = await db.getAllIdeas();
+      setIdeas(allIdeas);
+
+      // Only switch view if successful
+      setView("DASHBOARD");
+      setIsSidebarOpen(true);
+      setSelectedBatchIds(new Set());
+      setBatchIdeas([]);
+    } catch (error) {
+      console.error("Database save failed:", error);
+      throw error; // Re-throw to be caught by handleContinueSelection
+    }
   };
 
 
@@ -372,13 +390,22 @@ export default function Home() {
                 </button>
                 <button
                   onClick={handleContinueSelection}
-                  disabled={selectedBatchIds.size < 5}
+                  disabled={selectedBatchIds.size < 5 || isSaving}
                   className={cn(
                     "px-8 py-3 rounded-xl font-bold text-white transition-all flex items-center gap-2",
-                    selectedBatchIds.size >= 5 ? "bg-blue-600 hover:bg-blue-700 shadow-lg" : "bg-slate-300 cursor-not-allowed"
+                    selectedBatchIds.size >= 5 && !isSaving ? "bg-blue-600 hover:bg-blue-700 shadow-lg" : "bg-slate-300 cursor-not-allowed"
                   )}
                 >
-                  Continue ({selectedBatchIds.size}/5) <ArrowRight className="w-5 h-5" />
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      Continue ({selectedBatchIds.size}/5) <ArrowRight className="w-5 h-5" />
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>
