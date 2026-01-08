@@ -124,9 +124,10 @@ const GAME_STEPS = [
     { title: "Polish", description: "Add particle effects, screen shake, and optimize performance." }
 ];
 
-export function generateIdea(niche?: keyof typeof NICHES): Idea {
+export function generateIdea(niche?: keyof typeof NICHES, forceProcedural: boolean = false): Idea {
     // 1. Chance to pick a CURATED high-quality idea
-    if (niche && CURATED_IDEAS[niche] && Math.random() < 0.40) {
+    // Only if not forced to be procedural
+    if (!forceProcedural && niche && CURATED_IDEAS[niche] && Math.random() < 0.40) {
         const pool = CURATED_IDEAS[niche];
         const template = pool[Math.floor(Math.random() * pool.length)];
 
@@ -173,6 +174,12 @@ function createIdeaObject(title: string, description: string, tags: string[], ni
         tags,
         difficulty: Math.random() > 0.7 ? "Hard" : "Medium",
         techStack,
+        steps: baseSteps.map(s => ({
+            id: uuidv4(),
+            title: s.title,
+            description: s.description,
+            completed: false
+        })),
         createdAt: Date.now(),
         liked: false,
         checked: false
@@ -188,11 +195,14 @@ export function generateIdeaBatch(count: number = 25, niche?: keyof typeof NICHE
 
         // Simple retry for duplicates in same batch
         let attempts = 0;
-        while (usedTitles.has(idea.title) && attempts < 5) {
-            idea = generateIdea(niche);
+        // If duplicate, try again. After 2 attempts, FORCE procedural to avoid curated collisions.
+        while (usedTitles.has(idea.title) && attempts < 10) {
+            idea = generateIdea(niche, attempts > 1); // Force procedural after 2 failed attempts
             attempts++;
         }
 
+        // Even if duplicate after 10 tries (very rare with procedural), we add it. 
+        // But the forceProcedural should solve 99% of this.
         usedTitles.add(idea.title);
         batch.push(idea);
     }
