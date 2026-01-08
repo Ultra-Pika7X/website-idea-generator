@@ -377,6 +377,9 @@ export default function Home() {
                           setSelectedIdea(idea);
                         }
                       }}
+                      onDelete={() => { }}
+                      compact={true}
+                      selected={selectedBatchIds.has(idea.id)}
                     />
                   </motion.div>
                 ))}
